@@ -158,6 +158,16 @@
       "fr_scope": "all",
       "overall_score": 97.14
     },
-    "gate4": null
+    "gate4": {
+      "score": 97.4,
+      "quality_complete": true,
+      "rounds_used": 2,
+      "open_critical": 0,
+      "open_high": 0,
+      "phase": 6,
+      "gate": 4,
+      "fr_scope": "all",
+      "overall_score": 97.4
+    }
   }
 }

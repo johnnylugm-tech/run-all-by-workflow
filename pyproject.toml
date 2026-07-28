@@ -1,2 +1,18 @@
 [tool.mypy]
 exclude = ["^harness/", "^03-development/tests/"]
+
+[tool.pytest.ini_options]
+# When pytest is invoked from the project root with a positional path
+# argument (harness registry format: pytest {root} --benchmark-only),
+# pytest's discovery would otherwise sweep the entire tree including
+# harness/tests/* which crash during collection (HR-17: harness is
+# read-only and the project controls collection). Pin discovery to the
+# 03-development tree so the framework's tool invocations see exactly
+# the project test surface.
+testpaths = ["03-development/tests"]
+pythonpath = ["03-development/src"]
+# Defensive: pytest's positional path argument overrides testpaths, so
+# we also tell pytest to NEVER recurse into the harness/ tree (owned by
+# the framework itself, has its own pytest config).
+norecursedirs = ["harness", ".venv", "build", "dist"]
+addopts = "--ignore=harness"

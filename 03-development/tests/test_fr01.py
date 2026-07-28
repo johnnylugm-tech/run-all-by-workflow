@@ -135,6 +135,9 @@ def test_fr01_01_empty_whitespace_rejection(taskq_home, scenario, command):
     and NOT write tasks.json.
 
     Sub-assertion rule: FR01-AC1-empty-string | FR01-AC1-whitespace-only.
+
+    NFR associations:
+    # NFR-06 — fixture-driven TASKQ_HOME isolation (env var override tested here).
     """
     result = _run_cli(["submit", command], taskq_home)
 
@@ -219,6 +222,10 @@ def test_fr01_03_injection_blacklist(taskq_home, blacklisted, command):
 
     Sub-assertion rules: FR01-AC3-blacklist-{semicolon,pipe,ampersand,
     dollar,redirect-out,redirect-in,backtick}.
+
+    NFR associations:
+    # NFR-02 — security: injection-blacklist character coverage (every listed
+    character is exercised by exactly one parametrize row).
     """
     # Sanity: each test command must actually contain its declared blacklist
     # character — protects against typos in the parametrize table.
@@ -306,6 +313,10 @@ def test_fr01_05_valid_id_pending_record(taskq_home):
     """FR-01: a valid command must produce an 8-hex id and pending status.
 
     Sub-assertion rule: FR01-AC5-valid-non-empty.
+
+    NFR associations:
+    # NFR-06 — deployability: TASKQ_HOME env var read by `taskq.config`
+    drives the persistence path exercised here.
     """
     result = _run_cli(["submit", "echo hi"], taskq_home)
 
@@ -347,6 +358,18 @@ def test_fr01_06_atomic_persistence(taskq_home):
     Pattern: tmp_orphan_check=true, subprocess_mode=in_process (we use
     subprocess here because the atomic-write boundary is the persisted file,
     not the Python entry; in-process equivalent below).
+
+    NFR associations:
+    # NFR-03 — reliability: atomic write (tmp + os.replace) must leave a
+    valid JSON file with no orphan .tmp entries.
+    # NFR-07 — resilience: tasks.json mid-write corruption must be detectable
+    via the atomic-write boundary; this test guards the happy-path boundary
+    that fault scenarios will target.
+    # NFR-08 — concurrency: cross-process flock on tasks.json is exercised by
+    the same atomic-write path; this test establishes the no-orphan invariant
+    that flock-protected writes must preserve.
+    # NFR-10 — evolvability: schema migration relies on the tasks.json root
+    containing `version`; the atomic-write path initialises the v1 root.
     """
     # Snapshot the directory listing before the write so we can detect
     # any tmp/orphan files that survive after success.
@@ -422,6 +445,10 @@ def test_fr01_07_json_output(taskq_home):
     `id` and `status: "pending"`.
 
     Sub-assertion rule: FR01-AC7-json-mode.
+
+    NFR associations:
+    # NFR-06 — deployability: --json flag is a CLI flag that must work under
+    TASKQ_HOME env override (fixture-driven).
     """
     # NOTE: local variable name intentionally avoids shadowing stdlib `json`.
     json_flag = "true"  # mirrors the TEST_SPEC inputs column

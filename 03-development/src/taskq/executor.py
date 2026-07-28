@@ -64,6 +64,11 @@ def _decode_capture(field) -> str:
     return field
 
 
+def _is_terminal_success(outcome: dict) -> bool:
+    """[FR-03] True iff the outcome is a terminal ``done`` (no retry needed)."""
+    return outcome.get("status") == "done"
+
+
 def _execute(command: str, timeout: int) -> dict:
     """[FR-02] Run ``command`` and return the terminal-state record fields.
 
@@ -109,8 +114,8 @@ def _attempt_with_retry(command: str, timeout: int) -> dict:
     attempts = max(1, breaker.retry_limit())
     outcome = _execute(command, timeout)
     for retry_index in range(1, attempts):
-        if outcome["status"] == "done":
-            break
+        if _is_terminal_success(outcome):
+            return outcome
         _sleep(breaker.backoff_delay(retry_index))
         outcome = _execute(command, timeout)
     return outcome
@@ -150,7 +155,7 @@ def run(task_id: str) -> int:
 
     store.update_task(home, task_id, **outcome)
 
-    if outcome["status"] == "done":
+    if _is_terminal_success(outcome):
         circuit.record_success()
     else:
         circuit.record_failure()

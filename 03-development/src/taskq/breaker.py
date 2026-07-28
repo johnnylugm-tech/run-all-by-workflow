@@ -95,13 +95,7 @@ class CircuitBreaker:
         The decay is computed on read (never written) so any process
         observing an expired OPEN sees HALF_OPEN without a write race.
         """
-        data = self._load()
-        current = data.get("state", CLOSED)
-        if current == OPEN:
-            elapsed = time.time() - float(data.get("opened_at", 0.0))
-            if elapsed >= _cooldown():
-                return HALF_OPEN
-        return current
+        return self._decay_open(self._load())
 
     def allow(self) -> bool:
         """[FR-03] False only while the breaker is OPEN (rejects the run)."""
@@ -116,7 +110,7 @@ class CircuitBreaker:
         """
         with store.STORE_LOCK:
             data = self._load()
-            was_half_open = self.state() == HALF_OPEN
+            was_half_open = self._decay_open(data) == HALF_OPEN
             count = int(data.get("failure_count", 0)) + 1
             data["failure_count"] = count
             if was_half_open or count >= _threshold():
@@ -127,14 +121,31 @@ class CircuitBreaker:
     def record_success(self) -> None:
         """[FR-03] Close the breaker and clear the failure history."""
         with store.STORE_LOCK:
-            self._save({
-                "version": 1,
-                "state": CLOSED,
-                "failure_count": 0,
-                "opened_at": 0.0,
-            })
+            self._save(self._fresh_state())
 
     # --- Persistence ----------------------------------------------------
+
+    @staticmethod
+    def _fresh_state() -> dict:
+        """[FR-03] Default CLOSED state document per SPEC §5.2."""
+        return {
+            "version": 1,
+            "state": CLOSED,
+            "failure_count": 0,
+            "opened_at": 0.0,
+        }
+
+    def _decay_open(self, data: dict) -> str:
+        """[FR-03] Resolve the live state from a loaded document.
+
+        OPEN decays to HALF_OPEN once the cooldown has elapsed; every
+        other state passes through unchanged.
+        """
+        current = data.get("state", CLOSED)
+        if current != OPEN:
+            return current
+        elapsed = time.time() - float(data.get("opened_at", 0.0))
+        return HALF_OPEN if elapsed >= _cooldown() else OPEN
 
     def _load(self) -> dict:
         """[FR-03] Read breaker.json; fail fast on a corrupt document.
@@ -144,12 +155,7 @@ class CircuitBreaker:
         rebuilt — it is surfaced as an error naming the path (NFR-07).
         """
         if not self.path.exists():
-            return {
-                "version": 1,
-                "state": CLOSED,
-                "failure_count": 0,
-                "opened_at": 0.0,
-            }
+            return self._fresh_state()
         try:
             return json.loads(self.path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:

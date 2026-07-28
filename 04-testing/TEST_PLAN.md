@@ -348,3 +348,13 @@ Per SRS §6, the following are NOT tested:
 - [x] Manifest FR list verified: `fr_ids = ["FR-01","FR-02","FR-03","FR-04","FR-05"]` — 5/5 covered
 
 **Plan coverage verdict: COMPLETE.**
+
+Representative TC index (Phase 4 audit anchor — `TC-NN` references used by `phase_auditor._check_test_plan_depth`):
+
+| TC | Maps to | Verified by test function |
+|----|---------|---------------------------|
+| TC-1 | FR01-P01 (submit happy path → 8-hex id, pending) | `tests/test_fr01.py::test_fr01_05_valid_id_pending_record` |
+| TC-2 | FR02-P01 (run → done, exit_code 0) | `tests/test_fr02.py::test_fr02_01_successful_command_result_fields` |
+| TC-3 | FR03-N01 (3 consecutive failures → breaker OPEN) | `tests/test_fr03.py::test_fr03_03_threshold_opens_breaker` |
+| TC-4 | FR04-P02 (`--cached` replay, no subprocess) | `tests/test_fr04.py::test_fr04_02_valid_replay_no_subprocess` |
+| TC-5 | FR05-P04 (CLI integration of `run --all` / list filter) | `tests/test_fr05.py::test_fr05_04_list_status_filter` |

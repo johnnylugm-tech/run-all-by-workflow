@@ -134,7 +134,7 @@ def test_nfr03_03_breaker_recovery_bound(taskq_home: Path, monkeypatch) -> None:
 
     fake_now[0] = opened_at + br._cooldown()
     assert cb.state() == br.HALF_OPEN, (
-        f"OPEN must decay to HALF_OPEN at cooldown"
+        "OPEN must decay to HALF_OPEN at cooldown"
     )
 
 
@@ -241,8 +241,6 @@ def test_nfr08_03_network_filesystem_warning_fallback(
 ) -> None:
     """NFR-08 flock ENOTSUP falls back to atomic-write path."""
     import fcntl as fcntl_mod
-
-    orig_flock = fcntl_mod.flock
 
     def _failing_flock(*_a, **_kw):
         raise OSError(45, "Operation not supported")

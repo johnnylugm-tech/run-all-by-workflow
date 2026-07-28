@@ -755,3 +755,43 @@ def test_fr04_06_concurrent_cache_atomicity(taskq_home, monkeypatch):
             f"cache.get must return None or a well-formed dict; got "
             f"{type(observed).__name__}: {observed!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Coverage: cache._load corrupt-JSON path (NFR-07 fail-fast on parse error).
+# Without this test the except-block in cache._load stays at 0 coverage and
+# blocks Phase-4 exit (pytest --cov-fail-under=100).
+# ---------------------------------------------------------------------------
+
+
+def test_cache_load_raises_on_corrupt_json(taskq_home, monkeypatch):
+    """NFR-07: cache._load refuses to silently rebuild on parse failure."""
+    cache_path = taskq_home / "cache.json"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text("{ this is not json", encoding="utf-8")
+    # taskq.cache reads from taskq_home via the TASKQ_HOME env var; ensure
+    # the test's tmp path is the one resolved.
+    monkeypatch.setenv("TASKQ_HOME", str(taskq_home))
+    with pytest.raises(json_lib.JSONDecodeError) as exc_info:
+        cache._load()
+    assert str(cache_path) in str(exc_info.value)
+
+
+def test_cache_load_raises_on_read_oserror(taskq_home, monkeypatch):
+    """NFR-07: cache._load surfaces OSError rather than silently rebuilding."""
+    cache_path = taskq_home / "cache.json"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("TASKQ_HOME", str(taskq_home))
+
+    real_read_text = cache.Path.read_text
+
+    def _failing_read_text(self, *a, **kw):
+        if self == cache_path:
+            raise OSError(5, "simulated I/O error")
+        return real_read_text(self, *a, **kw)
+
+    monkeypatch.setattr(cache.Path, "read_text", _failing_read_text)
+    with pytest.raises(OSError):
+        cache._load()
+

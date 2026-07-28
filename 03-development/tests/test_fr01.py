@@ -546,3 +546,96 @@ def test_fr01_cov_dunder_main_importable() -> None:
     # The `main` symbol is the public re-export from taskq.cli.
     from taskq.cli import main as cli_main
     assert mod.main is cli_main
+
+
+def test_fr01_cov_dunder_main_dispatch_via_runpy(taskq_home) -> None:
+    """FR-01 coverage gap: exercise ``python -m taskq`` dispatch path.
+
+    ``pytest-cov`` does not aggregate subprocess coverage into the
+    in-process report. To cover the
+    ``if __name__ == "__main__": sys.exit(main())`` branch we invoke
+    the module directly through ``runpy`` (which sets
+    ``__name__ == "__main__"`` in the module's namespace).
+    """
+    import runpy
+    import sys
+
+    monkey_argv = [sys.argv[0], "--help"]
+    saved = sys.argv
+    sys.argv = monkey_argv
+    try:
+        # `--help` exits 0; we only need the main-dispatch path to fire.
+        with pytest.raises(SystemExit) as exc_info:
+            runpy.run_module("taskq.__main__", run_name="__main__")
+        assert exc_info.value.code == 0
+    finally:
+        sys.argv = saved
+
+
+# ---------------------------------------------------------------------------
+# Coverage: store.load_store corrupt-JSON path (NFR-07 fail-fast on parse
+# error) + store._atomic_write_json os.replace-failure path (NFR-03 cleanup).
+# Without these the except-block + finally-cleanup branch sit at 0 coverage
+# and block Phase-4 exit (pytest --cov-fail-under=100).
+# ---------------------------------------------------------------------------
+
+
+def test_store_load_store_raises_on_corrupt_json(taskq_home) -> None:
+    """NFR-07: store.load_store refuses to silently rebuild on parse failure."""
+    from taskq import store
+
+    tasks_path = taskq_home / "tasks.json"
+    tasks_path.write_text("{ this is not json", encoding="utf-8")
+    with pytest.raises(json_lib.JSONDecodeError) as exc_info:
+        store.load_store(taskq_home)
+    assert str(tasks_path) in str(exc_info.value)
+
+
+def test_store_load_store_raises_on_read_oserror(
+    taskq_home, monkeypatch
+) -> None:
+    """NFR-07: store.load_store surfaces OSError rather than silently rebuilding."""
+    from taskq import store
+
+    tasks_path = taskq_home / "tasks.json"
+    tasks_path.parent.mkdir(parents=True, exist_ok=True)
+    tasks_path.write_text("{}", encoding="utf-8")
+
+    real_read_text = store.Path.read_text
+
+    def _failing_read_text(self, *a, **kw):
+        if self == tasks_path:
+            raise OSError(5, "simulated I/O error")
+        return real_read_text(self, *a, **kw)
+
+    monkeypatch.setattr(store.Path, "read_text", _failing_read_text)
+    with pytest.raises(OSError):
+        store.load_store(taskq_home)
+
+
+def test_store_atomic_write_json_unlinks_tmp_on_replace_failure(
+    taskq_home, monkeypatch
+) -> None:
+    """NFR-03: when os.replace raises, the tmp file is cleaned up."""
+    from taskq import store
+
+    target = taskq_home / "tasks.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    real_replace = store.os.replace
+
+    def _failing_replace(src, dst):
+        raise OSError(38, "function not implemented")
+
+    monkeypatch.setattr(store.os, "replace", _failing_replace)
+    with pytest.raises(OSError):
+        store._atomic_write_json(target, {"version": 1, "tasks": {}})
+    # Tmp file created during the attempt must have been unlinked in finally.
+    remaining = [
+        p for p in taskq_home.glob(f".{target.name}.*.tmp") if p.exists()
+    ]
+    assert remaining == [], (
+        f"_atomic_write_json must unlink tmp on failure; "
+        f"leaked: {[str(p) for p in remaining]}"
+    )
+    assert real_replace is not None  # sanity: original binding retained

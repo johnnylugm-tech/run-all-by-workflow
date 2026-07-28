@@ -49,9 +49,11 @@ def load_store(home: Path) -> dict:
         return {"version": 1, "tasks": {}}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         # Surface the path so callers / users can locate the bad file
         # (NFR-07 fail-fast: do not silently rebuild on corruption).
+        raise json.JSONDecodeError(f"{path}: {exc.msg}", exc.doc, exc.pos) from exc
+    except OSError as exc:
         raise type(exc)(f"{path}: {exc}") from exc
 
 

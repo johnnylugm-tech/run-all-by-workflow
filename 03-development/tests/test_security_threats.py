@@ -23,8 +23,6 @@ import contextlib
 import io
 import json as json_lib
 import os
-import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -204,11 +202,14 @@ def test_fr02_redaction_replaces_secret_lines(taskq_home):
     with ``[REDACTED]`` BEFORE the tail is written to tasks.json.
     """
     # Build a command that emits both an sk-... API key and a token=...
-    # assignment on stdout. Use python so we control the line endings.
+    # assignment on stdout in one print call. Avoid ``;`` (FR-01 injection
+    # blacklist) so the submit is accepted by ``_validate_command``; the
+    # two high-precision redaction patterns match the two substrings
+    # independently when they appear on the same line.
     payload = (
-        'python -c "import sys; '
-        'sys.stdout.write(\'export sk-abcdefghijklmnop1234\\n\'); '
-        'sys.stdout.write(\'token=supersecretvalue123\\n\')"'
+        "python3 -c "
+        "\"print('export sk-abcdefghijklmnop1234 "
+        "token=supersecretvalue123')\""
     )
     submit_rc, _out, _err = _run_cli_inprocess(["submit", payload], taskq_home)
     assert submit_rc == 0, "seed submit must succeed"

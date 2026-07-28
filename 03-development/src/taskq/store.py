@@ -43,18 +43,49 @@ def now_iso() -> str:
 
 
 def load_store(home: Path) -> dict:
-    """[FR-01] Read tasks.json from ``home``; return v1 skeleton if absent."""
+    """[FR-01, NFR-10] Read tasks.json from ``home``; return v1 skeleton if absent.
+
+    [NFR-10] Lazily migrates a legacy v0 flat-list document to the v1
+    ``{version, tasks}`` shape on read. The original v0 file is backed up
+    to ``<file>.v0.bak`` BEFORE the migration write so the pre-migration
+    payload remains recoverable (T-06 repudiation mitigation, SAD §2.2.6).
+    Already-versioned documents (any dict whose root carries a ``version``
+    key, including ``version=0``) are returned verbatim.
+    """
     path = home / TASKS_FILENAME
     if not path.exists():
         return {"version": 1, "tasks": {}}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         # Surface the path so callers / users can locate the bad file
         # (NFR-07 fail-fast: do not silently rebuild on corruption).
         raise json.JSONDecodeError(f"{path}: {exc.msg}", exc.doc, exc.pos) from exc
     except OSError as exc:
         raise type(exc)(f"{path}: {exc}") from exc
+
+    # NFR-10 migration: a flat list is the pre-versioning legacy format;
+    # back it up verbatim, convert to v1, and rewrite atomically so the
+    # next read sees the canonical skeleton and the backup preserves the
+    # original bytes for audit / rollback (T-06).
+    if isinstance(document, list):
+        backup_path = path.parent / f"{path.name}.v0.bak"
+        backup_path.write_text(
+            json.dumps(document, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        tasks: dict = {}
+        for item in document:
+            # Each v0 record carries its id under the ``id`` key; in v1
+            # the id is the dict key and the record carries the rest.
+            task_id = item["id"]
+            record = {k: v for k, v in item.items() if k != "id"}
+            tasks[task_id] = record
+        migrated = {"version": 1, "tasks": tasks}
+        _atomic_write_json(path, migrated)
+        return migrated
+
+    return document
 
 
 def _file_lock(path: Path):

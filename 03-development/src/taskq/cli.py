@@ -63,17 +63,60 @@ from typing import Sequence
 from taskq import breaker, cache, executor, store  # noqa: F401
 
 MAX_COMMAND_LENGTH = 1000
-BLACKLIST_CHARS = set(";|$>&<`")
+BLACKLIST_CHARS = frozenset(";|$>&<`")
 ACTIVE_STATUSES = ("pending", "running")
 STATUS_PENDING = "pending"
-EXIT_VALIDATION_ERROR = 2
+
+# Exit-code map per SPEC §7 (mirrored by test_fr05.py:650).
+EXIT_SUCCESS = 0
 EXIT_INTERNAL_ERROR = 1
+EXIT_VALIDATION_ERROR = 2
 
 DATA_FILENAMES = (
     store.TASKS_FILENAME,
     breaker.BREAKER_FILENAME,
     cache.CACHE_FILENAME,
 )
+
+
+# --- Diagnostics --------------------------------------------------------
+
+def _fail(subcommand: str, message: str, exit_code: int) -> int:
+    """[FR-01, FR-05] Emit a ``<subcommand>:``-prefixed stderr diagnostic.
+
+    Every non-zero exit of the dispatch layer flows through here so the
+    stderr channel stays uniform (and never empty — test_fr05.py:699).
+    Returns ``exit_code`` so handlers can ``return _fail(...)`` directly.
+    """
+    print(f"{subcommand}: {message}", file=sys.stderr)
+    return exit_code
+
+
+def _invalid(subcommand: str, message: str) -> int:
+    """[FR-01, FR-05] Reject bad input / an unknown id with exit code 2."""
+    return _fail(subcommand, message, EXIT_VALIDATION_ERROR)
+
+
+def _internal_error(subcommand: str, message: str) -> int:
+    """[FR-05] Fail fast on a corrupt on-disk document with exit code 1.
+
+    Citations:
+      03-development/tests/test_fr05.py:727 — corrupt on-disk documents
+        surface as exit 1 (NFR-07 fail-fast, never silent rebuild).
+    """
+    return _fail(subcommand, message, EXIT_INTERNAL_ERROR)
+
+
+# --- Store access -------------------------------------------------------
+
+def _load_tasks() -> dict:
+    """[FR-05] Return the ``{task_id: record}`` map from ``$TASKQ_HOME``.
+
+    Shared by ``status`` and ``list`` so both read the queue through the
+    single store loader that honours the atomic-write boundary (NFR-03)
+    and carries the schema ``version`` field (NFR-10).
+    """
+    return store.load_store(store.home()).get("tasks", {})
 
 
 def _new_task_id() -> str:
@@ -104,53 +147,36 @@ def _validate_command(command: str) -> str | None:
             f"command length {len(command)} exceeds maximum "
             f"{MAX_COMMAND_LENGTH} characters"
         )
-    for ch in BLACKLIST_CHARS:
-        if ch in command:
-            return f"command contains forbidden character {ch!r}"
+    # Scan the command (not the blacklist) so the diagnostic always names
+    # the FIRST offending character rather than an arbitrary set member.
+    for char in command:
+        if char in BLACKLIST_CHARS:
+            return f"command contains forbidden character {char!r}"
     return None
 
 
-def _name_is_taken(store_data: dict, name: str) -> bool:
+def _name_is_taken(store_document: dict, name: str) -> bool:
     """[FR-01] Return True if `name` is already used by a pending/running task."""
-    for record in store_data.get("tasks", {}).values():
-        if record.get("status") in ACTIVE_STATUSES:
-            if record.get("name") == name:
-                return True
-    return False
-
-
-def _submit_error(message: str) -> int:
-    """[FR-01] Emit a ``submit:``-prefixed diagnostic to stderr and return
-    the validation-exit code.
-    """
-    print(f"submit: {message}", file=sys.stderr)
-    return EXIT_VALIDATION_ERROR
-
-
-def _internal_error(message: str) -> int:
-    """[FR-05] Emit a stderr diagnostic and return exit code 1.
-
-    Citations:
-      03-development/tests/test_fr05.py:727 — corrupt on-disk documents
-        surface as exit 1 (NFR-07 fail-fast, never silent rebuild).
-    """
-    print(message, file=sys.stderr)
-    return EXIT_INTERNAL_ERROR
+    return any(
+        record.get("status") in ACTIVE_STATUSES and record.get("name") == name
+        for record in store_document.get("tasks", {}).values()
+    )
 
 
 def _cmd_submit(args: argparse.Namespace) -> int:
     """[FR-01] Handler for `taskq submit`."""
-    err = _validate_command(args.command)
-    if err is not None:
-        return _submit_error(err)
+    rejection = _validate_command(args.command)
+    if rejection is not None:
+        return _invalid("submit", rejection)
 
     home = store.home()
     home.mkdir(parents=True, exist_ok=True)
-    store_data = store.load_store(home)
+    store_document = store.load_store(home)
 
-    if args.name is not None and _name_is_taken(store_data, args.name):
-        return _submit_error(
-            f"name {args.name!r} is already used by a pending/running task"
+    if args.name is not None and _name_is_taken(store_document, args.name):
+        return _invalid(
+            "submit",
+            f"name {args.name!r} is already used by a pending/running task",
         )
 
     task_id = _new_task_id()
@@ -161,18 +187,18 @@ def _cmd_submit(args: argparse.Namespace) -> int:
     }
     if args.name is not None:
         record["name"] = args.name
-    store_data["tasks"][task_id] = record
+    store_document["tasks"][task_id] = record
 
     # Persist the entire store (full rewrite) — submit is the entry point
     # so the task id is guaranteed new and there is no in-place update to
     # merge against.
-    store._atomic_write_json(home / store.TASKS_FILENAME, store_data)
+    store._atomic_write_json(home / store.TASKS_FILENAME, store_document)
 
     if args.json:
         print(json.dumps({"id": task_id, "status": STATUS_PENDING}))
     else:
         print(task_id)
-    return 0
+    return EXIT_SUCCESS
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -199,9 +225,42 @@ def _format_status_text(task_id: str, record: dict) -> str:
         surface every persisted field as a substring of stdout.
     """
     lines = [f"id: {task_id}"]
-    for key in sorted(record.keys()):
-        lines.append(f"{key}: {record[key]}")
+    lines += [f"{key}: {record[key]}" for key in sorted(record)]
     return "\n".join(lines)
+
+
+def _emit_payload(payload, as_json: bool, text: str) -> int:
+    """[FR-05] Print ``payload`` as one JSON line, or ``text`` otherwise.
+
+    The global ``--json`` contract is a SINGLE line with no internal
+    newlines (test_fr05.py:629), which ``json.dumps`` guarantees by
+    default (no ``indent``). In text mode an empty rendering (e.g. an
+    empty ``list``) prints nothing rather than a blank line.
+    """
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False))
+    elif text:
+        print(text)
+    return EXIT_SUCCESS
+
+
+def _assert_documents_readable(subcommand: str) -> int | None:
+    """[FR-05] Fail fast when an on-disk document is corrupt (NFR-07).
+
+    Touches ``breaker.json`` through its loader — which refuses to
+    silently rebuild an unparseable document — and converts the raised
+    ``ValueError`` into exit code 1. Returns ``None`` when all documents
+    are readable.
+
+    Citations:
+      03-development/tests/test_fr05.py:727 — corrupt ``breaker.json``
+        surfaces as exit 1 before any payload is emitted.
+    """
+    try:
+        breaker.CircuitBreaker(store.home()).state()
+    except ValueError as exc:
+        return _internal_error(subcommand, str(exc))
+    return None
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -215,27 +274,21 @@ def _cmd_status(args: argparse.Namespace) -> int:
       03-development/tests/test_fr05.py:727 — corrupt ``breaker.json``
         surfaces as exit 1 (NFR-07 fail-fast).
     """
-    home = store.home()
-    store_data = store.load_store(home)
-    tasks = store_data.get("tasks", {})
+    # Check the on-disk documents FIRST so corruption outranks a lookup
+    # miss: a corrupt home is exit 1, not exit 2.
+    corrupt = _assert_documents_readable("status")
+    if corrupt is not None:
+        return corrupt
 
-    # Touch the breaker FIRST so a corrupt document surfaces as exit 1
-    # (NFR-07 fail-fast; never silently rebuild on-disk documents).
-    try:
-        breaker.CircuitBreaker(home).state()
-    except ValueError as exc:
-        return _internal_error(f"status: {exc}")
-
-    record = tasks.get(args.task_id)
+    record = _load_tasks().get(args.task_id)
     if record is None:
-        return _submit_error(f"unknown task id {args.task_id!r}")
+        return _invalid("status", f"unknown task id {args.task_id!r}")
 
-    payload = {"id": args.task_id, **record}
-    if args.json:
-        print(json.dumps(payload, ensure_ascii=False))
-    else:
-        print(_format_status_text(args.task_id, record))
-    return 0
+    return _emit_payload(
+        {"id": args.task_id, **record},
+        args.json,
+        _format_status_text(args.task_id, record),
+    )
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -247,26 +300,16 @@ def _cmd_list(args: argparse.Namespace) -> int:
       03-development/tests/test_fr05.py:475 — without a filter every
         task id is enumerated.
     """
-    home = store.home()
-    store_data = store.load_store(home)
-    tasks = store_data.get("tasks", {})
-
-    wanted = args.status
-    if wanted is not None:
-        filtered = {
-            tid: rec for tid, rec in tasks.items() if rec.get("status") == wanted
-        }
-    else:
-        filtered = dict(tasks)
-
-    items = [{"id": tid, **rec} for tid, rec in filtered.items()]
-
-    if args.json:
-        print(json.dumps(items, ensure_ascii=False))
-    else:
-        for item in items:
-            print(item["id"])
-    return 0
+    items = [
+        {"id": task_id, **record}
+        for task_id, record in _load_tasks().items()
+        if args.status is None or record.get("status") == args.status
+    ]
+    return _emit_payload(
+        items,
+        args.json,
+        "\n".join(item["id"] for item in items),
+    )
 
 
 def _cmd_clear(args: argparse.Namespace) -> int:
@@ -278,19 +321,27 @@ def _cmd_clear(args: argparse.Namespace) -> int:
         exit 0 even when the home is already empty.
     """
     home = store.home()
-    for fname in DATA_FILENAMES:
-        path = home / fname
-        if path.exists():
-            path.unlink()
-    return 0
+    for filename in DATA_FILENAMES:
+        # missing_ok keeps an already-empty home a clean success (exit 0)
+        # without racing a concurrent clear between exists() and unlink().
+        (home / filename).unlink(missing_ok=True)
+    return EXIT_SUCCESS
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """[FR-01, FR-05] Construct the top-level argparse parser."""
+    """[FR-01, FR-05] Construct the top-level argparse parser.
+
+    Citations:
+      03-development/tests/test_fr05.py:799 — ``--help`` must list every
+        subcommand (submit / run / status / list / clear).
+    """
     parser = argparse.ArgumentParser(
         prog="taskq",
         description="taskq — task-queue CLI.",
     )
+    # Declared here for `--help` discoverability only: ``main`` strips
+    # ``--json`` from argv before parsing so it is accepted both before
+    # and after the subcommand.
     parser.add_argument(
         "--json",
         action="store_true",
@@ -299,10 +350,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    submit = subparsers.add_parser(
-        "submit",
-        help="submit a new task to the queue",
-    )
+    def subcommand(name: str, summary: str, handler) -> argparse.ArgumentParser:
+        """Register a subcommand and bind its dispatch handler."""
+        sub = subparsers.add_parser(name, help=summary)
+        sub.set_defaults(handler=handler)
+        return sub
+
+    submit = subcommand("submit", "submit a new task to the queue", _cmd_submit)
     submit.add_argument(
         "command",
         help="the command string to enqueue",
@@ -312,25 +366,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="optional task name (must be unique among pending/running tasks)",
     )
-    submit.add_argument(
-        "--json",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    submit.set_defaults(handler=_cmd_submit)
 
-    run = subparsers.add_parser(
-        "run",
-        help="execute pending task(s)",
-    )
-    run_group = run.add_mutually_exclusive_group(required=True)
-    run_group.add_argument(
+    run = subcommand("run", "execute pending task(s)", _cmd_run)
+    target = run.add_mutually_exclusive_group(required=True)
+    target.add_argument(
         "task_id",
         nargs="?",
         default=None,
         help="run a single task by its 8-hex id",
     )
-    run_group.add_argument(
+    target.add_argument(
         "--all",
         action="store_true",
         help="run every pending task concurrently",
@@ -340,51 +385,40 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="consult the TTL cache before executing (FR-04)",
     )
-    run.set_defaults(handler=_cmd_run)
 
-    status = subparsers.add_parser(
-        "status",
-        help="print the full record of a task",
-    )
+    status = subcommand("status", "print the full record of a task", _cmd_status)
     status.add_argument(
         "task_id",
         help="the 8-hex task id to look up",
     )
-    status.set_defaults(handler=_cmd_status)
 
-    list_cmd = subparsers.add_parser(
-        "list",
-        help="list tasks (optionally filtered by status)",
+    list_cmd = subcommand(
+        "list", "list tasks (optionally filtered by status)", _cmd_list
     )
     list_cmd.add_argument(
         "--status",
         default=None,
         help="only list tasks whose status matches",
     )
-    list_cmd.set_defaults(handler=_cmd_list)
 
-    clear = subparsers.add_parser(
-        "clear",
-        help="remove every data file under $TASKQ_HOME",
-    )
-    clear.set_defaults(handler=_cmd_clear)
+    subcommand("clear", "remove every data file under $TASKQ_HOME", _cmd_clear)
 
     return parser
 
 
-def _resolve_global_json(argv: Sequence[str]) -> tuple[list[str], bool]:
-    """[FR-05] Strip ``--json`` from anywhere in ``argv`` and return its presence.
+def _strip_global_json(argv: Sequence[str]) -> tuple[list[str], bool]:
+    """[FR-05] Remove every ``--json`` token from ``argv``; report its presence.
 
-    The global ``--json`` flag is honoured before AND after the subcommand
-    so existing FR-01 callers (``taskq submit ... --json``) keep working
-    alongside the new FR-05 surface (``taskq --json status ...``). The
-    stripped argv is then handed to ``argparse`` whose subparser-level
-    ``--json`` records the same intent in the namespace.
+    ``--json`` is a GLOBAL flag (SAD §3.1), so it must be honoured both
+    before and after the subcommand: existing FR-01 callers write
+    ``taskq submit ... --json`` while the FR-05 surface writes
+    ``taskq --json status <id>``. Stripping the token up front means no
+    subparser has to redeclare it just to accept it in trailing position.
     """
-    return [a for a in argv if a != "--json"], "--json" in argv
+    return [token for token in argv if token != "--json"], "--json" in argv
 
 
-def main(argv: Sequence[str | None] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """[FR-01, FR-05] CLI entry point.
 
     Args:
@@ -399,16 +433,10 @@ def main(argv: Sequence[str | None] | None = None) -> int:
       03-development/tests/test_fr05.py:727 — ValueError from a corrupt
         on-disk document is converted to exit 1 with a stderr diagnostic.
     """
-    if argv is None:
-        argv = list(sys.argv[1:])
-    else:
-        argv = list(argv)
+    tokens = list(sys.argv[1:] if argv is None else argv)
+    tokens, json_requested = _strip_global_json(tokens)
 
-    parser = _build_parser()
-    cleaned, has_json = _resolve_global_json(argv)
-    args = parser.parse_args(cleaned) if cleaned else parser.parse_args([])
-    # The subparser-level --json (preserved for FR-01) and the global flag
-    # must agree; OR them so either path lights up JSON output.
-    args.json = bool(getattr(args, "json", False)) or has_json
+    args = _build_parser().parse_args(tokens)
+    args.json = json_requested
     # subparsers(required=True) guarantees handler is set.
     return args.handler(args)

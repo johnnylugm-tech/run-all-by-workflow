@@ -1,12 +1,12 @@
 {
   "gate": 1,
-  "phase": 7,
+  "phase": 8,
   "fr_id": "FR-04",
   "overall_score": 100.0,
   "quality_complete": true,
-  "rounds_used": 1,
   "open_critical_count": 0,
   "open_high_count": 0,
+  "rounds_used": 1,
   "breakdown": {
     "linting": {
       "score": 100.0,
@@ -16,7 +16,7 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.328}}"
+      "tool_evidence": "{\n    \"version\": \"1.1.409\",\n    \"time\": \"1785254137873\",\n    \"generalDiagnostics\": [\n        {\n            \"file\": \"/Users/johnny/projects/run-all-by-workflow/03-development/src/taskq/__init__.py\",\n            \"severity\": \"warning\",\n            \"message\": \"\\\"cache\\\" is specified in __all__ but is not present in module\",\n            \"range\": {\n                \"start\": {\n                    \"line\": 12,\n                    \"character\": 11\n                },\n                \"end\": {\n                "
     },
     "test_coverage": {
       "score": 100.0,
@@ -24,7 +24,7 @@
       "tests_passed": 8,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "============================= test session starts ==============================\nplatform darwin -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0\nbenchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=4 warmup=False warmup_iterations=100000)\nrootdir: /Users/johnny/projects/run-all-by-workflow/03-development\nconfigfile: pyproject.toml\nplugins: benchmark-5.2.3, cov-7.1.0, anyio-4.14.2\ncollected 8 items\n\n03-development/tests/test_fr04.py ........                               [100%]\n\n============================== 8 passed in 0.03s ==============================="
+      "tool_evidence": "============================= test session starts ==============================\nplatform darwin -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0\nbenchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /Users/johnny/projects/run-all-by-workflow/03-development\nconfigfile: pyproject.toml\nplugins: benchmark-5.2.3, cov-7.1.0, anyio-4.14.2\ncollected 8 items\n\n03-development/te"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",

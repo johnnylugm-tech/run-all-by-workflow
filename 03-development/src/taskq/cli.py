@@ -23,6 +23,17 @@ Citations:
     is written via tmp + os.replace, leaving no orphan .tmp / ~ files.
   03-development/tests/test_fr01.py:325 — --json mode emits a single JSON
     line with `id` (8-hex) and `status: "pending"`.
+
+[FR-02] taskq run subcommand:
+  03-development/tests/test_fr02.py:267 — `cli.main(["run", task_id])`
+    dispatches to `executor.run(task_id)`; a single-task timeout returns 4.
+  03-development/tests/test_fr02.py:298 — `python -m taskq run <id>`
+    subprocess surface; exit code 4 on ``TASKQ_TASK_TIMEOUT``.
+  03-development/tests/test_fr02.py:439 — `cli.main(["run", "--all"])`
+    dispatches to `executor.run_all()`; concurrent fan-out exit 0 (or 3
+    for breaker-OPEN sentinel reserved by FR-03).
+  03-development/tests/test_fr02.py:466 — `python -m taskq run --all`
+    subprocess surface; tasks.json must remain valid JSON.
 """
 
 from __future__ import annotations
@@ -35,6 +46,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
+
+from taskq import executor  # noqa: F401  (used by _cmd_run dispatch)
 
 MAX_COMMAND_LENGTH = 1000
 BLACKLIST_CHARS = set(";|$>&<`")
@@ -180,6 +193,20 @@ def _cmd_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run(args: argparse.Namespace) -> int:
+    """[FR-02] Dispatch ``taskq run`` to the executor.
+
+    Citations:
+      03-development/tests/test_fr02.py:267 — single-task timeout surfaces
+        as OS exit 4 via ``executor.run``'s return value.
+      03-development/tests/test_fr02.py:439 — ``--all`` dispatches to
+        ``executor.run_all`` which fans out under the shared store Lock.
+    """
+    if args.all:
+        return executor.run_all()
+    return executor.run(args.task_id)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """[FR-01] Construct the top-level argparse parser."""
     parser = argparse.ArgumentParser(
@@ -207,6 +234,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="emit a single JSON object on stdout instead of a bare id",
     )
     submit.set_defaults(handler=_cmd_submit)
+
+    run = subparsers.add_parser(
+        "run",
+        help="execute pending task(s)",
+    )
+    run_group = run.add_mutually_exclusive_group(required=True)
+    run_group.add_argument(
+        "task_id",
+        nargs="?",
+        default=None,
+        help="run a single task by its 8-hex id",
+    )
+    run_group.add_argument(
+        "--all",
+        action="store_true",
+        help="run every pending task concurrently",
+    )
+    run.set_defaults(handler=_cmd_run)
     return parser
 
 

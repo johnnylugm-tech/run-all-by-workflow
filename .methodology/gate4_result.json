@@ -176,18 +176,12 @@
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
   "crg_review_context": {
     "status": "ok",
-    "summary": "Review context for 5 changed file(s):\n  - Risk: high\n  - 151 impacted nodes in 16 files",
-    "risk": "high",
-    "changed_file_count": 5,
-    "impacted_file_count": 16,
-    "key_entities": [
-      "/Users/johnny/projects/run-all-by-workflow/03-development/src/taskq/store.py",
-      "_FileLock",
-      "__enter__",
-      "__exit__",
-      "__init__"
-    ],
-    "test_gaps": 11,
+    "summary": "Review context for 17 changed file(s):\n  - Risk: low\n  - 0 impacted nodes in 0 files",
+    "risk": "low",
+    "changed_file_count": 17,
+    "impacted_file_count": 0,
+    "key_entities": [],
+    "test_gaps": 0,
     "next_tool_suggestions": [
       "detect_changes",
       "get_affected_flows",
@@ -195,27 +189,21 @@
     ],
     "context_savings": {
       "estimated": true,
-      "saved_tokens": 9341,
+      "saved_tokens": 13412,
       "saved_percent": 99
     }
   },
   "crg_impact_radius": {
     "status": "ok",
-    "summary": "Blast radius for 5 changed file(s):\n  - 24 nodes directly changed\n  - 151 nodes impacted (within 2 hops)\n  - 16 additional files affected",
-    "risk": "high",
-    "impacted_file_count": 16,
-    "key_entities": [
-      "/Users/johnny/projects/run-all-by-workflow/03-development/src/taskq/__main__.py",
-      "/Users/johnny/projects/run-all-by-workflow/03-development/src/taskq/breaker.py",
-      "_decay_open",
-      "_load",
-      "record_failure"
-    ],
+    "summary": "Blast radius for 17 changed file(s):\n  - 0 nodes directly changed\n  - 0 nodes impacted (within 2 hops)\n  - 0 additional files affected",
+    "risk": "low",
+    "impacted_file_count": 0,
+    "key_entities": [],
     "truncated": false,
     "context_savings": {
       "estimated": true,
-      "saved_tokens": 9335,
-      "saved_percent": 99
+      "saved_tokens": 13425,
+      "saved_percent": 100
     }
   },
   "crg_affected_flows": {

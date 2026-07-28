@@ -1,0 +1,5 @@
+# Test fixture for F3 redaction repro (test_bh_f3_subprocess_output_redacted).
+# The string is intentionally shaped to exercise the executor's stdout_tail
+# redaction (sk-[A-Za-z0-9]{16,}); replaced with a low-entropy placeholder
+# in HEAD but gitleaks still matches the historical commit on detect.
+e8805d044357b5a5c0ec04fa1f39339535e3fa91:03-development/tests/integration/test_bug_hunt_repros.py:generic-api-key:168

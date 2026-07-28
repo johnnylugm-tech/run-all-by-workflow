@@ -32,7 +32,6 @@ import shlex
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 from taskq import store
 

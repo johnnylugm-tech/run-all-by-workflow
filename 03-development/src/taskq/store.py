@@ -47,7 +47,12 @@ def load_store(home: Path) -> dict:
     path = home / TASKS_FILENAME
     if not path.exists():
         return {"version": 1, "tasks": {}}
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        # Surface the path so callers / users can locate the bad file
+        # (NFR-07 fail-fast: do not silently rebuild on corruption).
+        raise type(exc)(f"{path}: {exc}") from exc
 
 
 def _file_lock(path: Path):

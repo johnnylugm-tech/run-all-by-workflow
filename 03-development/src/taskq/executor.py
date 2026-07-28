@@ -1,4 +1,4 @@
-"""[FR-02] taskq executor — task execution and concurrency.
+"""[FR-02, FR-04] taskq executor — task execution and concurrency.
 
 Citations:
   03-development/tests/test_fr02.py:163 — ``executor.run(task_id)`` returns int
@@ -23,6 +23,13 @@ Citations:
   03-development/tests/test_fr02.py:516 — every concurrent worker write is
     serialised through ``store.STORE_LOCK`` so ``tasks.json`` is never
     corrupted (NFR-08).
+  03-development/tests/test_fr04.py:292 — ``executor.run(task_id, use_cache=True)``
+    consults ``cache.get`` BEFORE spawning a subprocess and replays a fresh
+    entry without invoking ``subprocess.run`` (FR04-AC2-ttl-valid, NFR-09).
+  03-development/tests/test_fr04.py:380 — a miss / expired cache falls through
+    to the normal execute path, and a successful done result is persisted
+    via ``cache.put(sig, result)`` so the NEXT run can replay it
+    (FR04-AC3-ttl-missing, FR04-AC4-ttl-expired, FR04-AC5-cache-write).
 """
 
 from __future__ import annotations
@@ -34,7 +41,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from taskq import breaker, store
+from taskq import breaker, cache, store
 
 # --- Public constants ---------------------------------------------------
 
@@ -51,8 +58,17 @@ _sleep = time.sleep
 # --- Helpers ------------------------------------------------------------
 
 def _tail(text: str) -> str:
-    """[FR-02] Strip trailing newlines and keep the last ``TAIL_BOUND`` chars."""
-    return text.rstrip("\n")[-TAIL_BOUND:]
+    """[FR-02, FR-04] Truncate to the last ``TAIL_BOUND`` chars.
+
+    Trailing newlines are stripped ONLY when truncation actually occurs
+    (text length > TAIL_BOUND). Short outputs are returned verbatim so a
+    subsequent cache write preserves the subprocess's own trailing
+    newline (FR-04 cache replay must echo the recorded ``stdout_tail``
+    byte-for-byte).
+    """
+    if len(text) > TAIL_BOUND:
+        return text.rstrip("\n")[-TAIL_BOUND:]
+    return text
 
 
 def _decode_capture(field) -> str:
@@ -121,12 +137,22 @@ def _attempt_with_retry(command: str, timeout: int) -> dict:
     return outcome
 
 
-def run(task_id: str) -> int:
-    """[FR-02] Execute a single pending task by id, with [FR-03] retry.
+def run(task_id: str, use_cache: bool = False) -> int:
+    """[FR-02, FR-04] Execute a single pending task by id, with [FR-03] retry.
 
-    The circuit breaker is consulted before any subprocess is spawned; a
-    failing attempt is retried per ``taskq.breaker``'s policy and the final
-    outcome is reported to the breaker.
+    When ``use_cache`` is True, ``taskq.cache.get(signature(command))`` is
+    consulted BEFORE any subprocess is spawned. A fresh entry
+    (``now - cached_at < TASKQ_CACHE_TTL``) is replayed directly: the
+    task transitions to ``done`` with ``cached=True`` and the cached
+    ``exit_code`` / ``stdout_tail`` retained, and no subprocess is
+    invoked (FR04-AC2-ttl-valid, NFR-09). Missing or expired entries
+    fall through to the normal execute path and a successful done
+    result is persisted via ``cache.put(sig, result)`` so the next run
+    can replay it (FR04-AC3, FR04-AC4, FR04-AC5).
+
+    The circuit breaker is consulted before any subprocess is spawned;
+    a failing attempt is retried per ``taskq.breaker``'s policy and the
+    final outcome is reported to the breaker.
 
     Returns:
         ``0`` if the task completed (exit 0 → ``done``, non-zero → ``failed``).
@@ -137,6 +163,27 @@ def run(task_id: str) -> int:
     record = store.load_store(home).get("tasks", {}).get(task_id)
     if record is None:
         return 0
+
+    command = record["command"]
+
+    # [FR-04] Cache hit short-circuits the subprocess — replay the
+    # cached result directly onto the task record with cached=True.
+    if use_cache:
+        entry = cache.get(cache.signature(command))
+        if entry is not None:
+            cached_result = entry.get("result", {})
+            store.update_task(
+                home,
+                task_id,
+                status="done",
+                cached=True,
+                exit_code=cached_result.get("exit_code", 0),
+                stdout_tail=cached_result.get("stdout_tail", ""),
+                stderr_tail=cached_result.get("stderr_tail", ""),
+                duration_ms=0,
+                finished_at=store.now_iso(),
+            )
+            return 0
 
     circuit = breaker.CircuitBreaker(home)
     if not circuit.allow():
@@ -149,7 +196,7 @@ def run(task_id: str) -> int:
     store.update_task(home, task_id, status="running")
 
     start = time.monotonic()
-    outcome = _attempt_with_retry(record["command"], timeout)
+    outcome = _attempt_with_retry(command, timeout)
     outcome["duration_ms"] = int((time.monotonic() - start) * 1000)
     outcome["finished_at"] = store.now_iso()
 
@@ -157,6 +204,17 @@ def run(task_id: str) -> int:
 
     if _is_terminal_success(outcome):
         circuit.record_success()
+        # [FR-04] Persist the successful result so the next
+        # ``run --cached`` can replay it without spawning a subprocess.
+        cache.put(
+            cache.signature(command),
+            {
+                "status": outcome["status"],
+                "exit_code": outcome["exit_code"],
+                "stdout_tail": outcome.get("stdout_tail", ""),
+                "stderr_tail": outcome.get("stderr_tail", ""),
+            },
+        )
     else:
         circuit.record_failure()
 

@@ -40,6 +40,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from taskq import breaker, cache, store
 
@@ -83,6 +84,48 @@ def _decode_capture(field) -> str:
 def _is_terminal_success(outcome: dict) -> bool:
     """[FR-03] True iff the outcome is a terminal ``done`` (no retry needed)."""
     return outcome.get("status") == "done"
+
+
+def _result_payload(outcome: dict) -> dict:
+    """[FR-04] Extract the replayable result fields from a terminal outcome.
+
+    Only ``status`` / ``exit_code`` / ``stdout_tail`` / ``stderr_tail``
+    are persisted; ``duration_ms`` and ``finished_at`` are deliberately
+    recomputed at replay time so the record reflects the REPLAY moment
+    rather than the original execution.
+    """
+    return {
+        "status": outcome["status"],
+        "exit_code": outcome["exit_code"],
+        "stdout_tail": outcome.get("stdout_tail", ""),
+        "stderr_tail": outcome.get("stderr_tail", ""),
+    }
+
+
+def _replay_cached(home: Path, task_id: str, command: str) -> bool:
+    """[FR-04] Replay a fresh cache entry onto ``task_id``; True on hit.
+
+    A hit writes ``status='done'``, ``cached=True``, and the cached
+    ``exit_code`` / ``stdout_tail`` / ``stderr_tail`` onto the task
+    record via ``store.update_task`` (atomic tmp + os.replace, NFR-03)
+    so the replay is durable across process boundaries (NFR-09).
+    """
+    entry = cache.get(cache.signature(command))
+    if entry is None:
+        return False
+    cached_result = entry.get("result", {})
+    store.update_task(
+        home,
+        task_id,
+        status="done",
+        cached=True,
+        exit_code=cached_result.get("exit_code", 0),
+        stdout_tail=cached_result.get("stdout_tail", ""),
+        stderr_tail=cached_result.get("stderr_tail", ""),
+        duration_ms=0,
+        finished_at=store.now_iso(),
+    )
+    return True
 
 
 def _execute(command: str, timeout: int) -> dict:
@@ -168,22 +211,8 @@ def run(task_id: str, use_cache: bool = False) -> int:
 
     # [FR-04] Cache hit short-circuits the subprocess — replay the
     # cached result directly onto the task record with cached=True.
-    if use_cache:
-        entry = cache.get(cache.signature(command))
-        if entry is not None:
-            cached_result = entry.get("result", {})
-            store.update_task(
-                home,
-                task_id,
-                status="done",
-                cached=True,
-                exit_code=cached_result.get("exit_code", 0),
-                stdout_tail=cached_result.get("stdout_tail", ""),
-                stderr_tail=cached_result.get("stderr_tail", ""),
-                duration_ms=0,
-                finished_at=store.now_iso(),
-            )
-            return 0
+    if use_cache and _replay_cached(home, task_id, command):
+        return 0
 
     circuit = breaker.CircuitBreaker(home)
     if not circuit.allow():
@@ -206,15 +235,7 @@ def run(task_id: str, use_cache: bool = False) -> int:
         circuit.record_success()
         # [FR-04] Persist the successful result so the next
         # ``run --cached`` can replay it without spawning a subprocess.
-        cache.put(
-            cache.signature(command),
-            {
-                "status": outcome["status"],
-                "exit_code": outcome["exit_code"],
-                "stdout_tail": outcome.get("stdout_tail", ""),
-                "stderr_tail": outcome.get("stderr_tail", ""),
-            },
-        )
+        cache.put(cache.signature(command), _result_payload(outcome))
     else:
         circuit.record_failure()
 

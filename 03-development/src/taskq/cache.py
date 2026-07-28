@@ -69,6 +69,15 @@ def _save(data: dict) -> None:
     store._atomic_write_json(_cache_path(), data)
 
 
+def _make_entry(result: dict) -> dict:
+    """[FR-04] Wrap a result payload in a fresh cache entry (SPEC §5.2).
+
+    ``dict(result)`` copies so a later in-place mutation of the caller's
+    dict does not silently rewrite the persisted entry.
+    """
+    return {"result": dict(result), "cached_at": time.time()}
+
+
 # --- Public API ---------------------------------------------------------
 
 def signature(command: str) -> str:
@@ -90,12 +99,10 @@ def get(sig: str) -> dict | None:
     caller can replay every recorded field.
     """
     with store.STORE_LOCK:
-        data = _load()
-        entry = data.get("entries", {}).get(sig)
+        entry = _load().get("entries", {}).get(sig)
         if entry is None:
             return None
-        cached_at = float(entry.get("cached_at", 0.0))
-        if (time.time() - cached_at) >= _ttl_seconds():
+        if (time.time() - float(entry.get("cached_at", 0.0))) >= _ttl_seconds():
             return None
         return entry
 
@@ -109,8 +116,5 @@ def put(sig: str, result: dict) -> None:
     """
     with store.STORE_LOCK:
         data = _load()
-        data.setdefault("entries", {})[sig] = {
-            "result": result,
-            "cached_at": time.time(),
-        }
+        data.setdefault("entries", {})[sig] = _make_entry(result)
         _save(data)

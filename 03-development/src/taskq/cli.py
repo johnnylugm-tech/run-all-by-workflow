@@ -39,6 +39,9 @@ from typing import Sequence
 MAX_COMMAND_LENGTH = 1000
 BLACKLIST_CHARS = set(";|$>&<`")
 ACTIVE_STATUSES = ("pending", "running")
+STATUS_PENDING = "pending"
+TASKS_FILENAME = "tasks.json"
+EXIT_VALIDATION_ERROR = 2
 
 
 def _taskq_home() -> Path:
@@ -96,14 +99,17 @@ def _load_store(home: Path) -> dict:
       03-development/tests/test_fr01.py:248 — "tasks.json must contain a
         'tasks' key" — root dict shape is {version, tasks}.
     """
-    tasks_file = home / "tasks.json"
+    tasks_file = home / TASKS_FILENAME
     if not tasks_file.exists():
         return {"version": 1, "tasks": {}}
     return json.loads(tasks_file.read_text(encoding="utf-8"))
 
 
-def _validate_command(command: str) -> tuple[bool, str]:
+def _validate_command(command: str) -> str | None:
     """[FR-01] Validate a command string against FR-01 rules.
+
+    Returns ``None`` when the command is acceptable, otherwise an
+    error message describing the rejection.
 
     Citations:
       03-development/tests/test_fr01.py:118 — empty / all-whitespace rejected.
@@ -111,16 +117,16 @@ def _validate_command(command: str) -> tuple[bool, str]:
       03-development/tests/test_fr01.py:177 — any of ;|&$><` rejected.
     """
     if not command or not command.strip():
-        return False, "command must not be empty or whitespace"
+        return "command must not be empty or whitespace"
     if len(command) > MAX_COMMAND_LENGTH:
-        return False, (
+        return (
             f"command length {len(command)} exceeds maximum "
             f"{MAX_COMMAND_LENGTH} characters"
         )
     for ch in BLACKLIST_CHARS:
         if ch in command:
-            return False, f"command contains forbidden character {ch!r}"
-    return True, ""
+            return f"command contains forbidden character {ch!r}"
+    return None
 
 
 def _name_is_taken(store: dict, name: str) -> bool:
@@ -132,28 +138,32 @@ def _name_is_taken(store: dict, name: str) -> bool:
     return False
 
 
+def _submit_error(message: str) -> int:
+    """[FR-01] Emit a ``submit:``-prefixed diagnostic to stderr and return
+    the validation-exit code.
+    """
+    print(f"submit: {message}", file=sys.stderr)
+    return EXIT_VALIDATION_ERROR
+
+
 def _cmd_submit(args: argparse.Namespace) -> int:
     """[FR-01] Handler for `taskq submit`."""
-    valid, err = _validate_command(args.command)
-    if not valid:
-        print(f"submit: {err}", file=sys.stderr)
-        return 2
+    err = _validate_command(args.command)
+    if err is not None:
+        return _submit_error(err)
 
     home = _taskq_home()
     home.mkdir(parents=True, exist_ok=True)
     store = _load_store(home)
 
     if args.name is not None and _name_is_taken(store, args.name):
-        print(
-            f"submit: name {args.name!r} is already used by a "
-            "pending/running task",
-            file=sys.stderr,
+        return _submit_error(
+            f"name {args.name!r} is already used by a pending/running task"
         )
-        return 2
 
     task_id = _new_task_id()
     record = {
-        "status": "pending",
+        "status": STATUS_PENDING,
         "command": args.command,
         "created_at": _now_iso(),
     }
@@ -161,10 +171,10 @@ def _cmd_submit(args: argparse.Namespace) -> int:
         record["name"] = args.name
     store["tasks"][task_id] = record
 
-    _atomic_write_json(home / "tasks.json", store)
+    _atomic_write_json(home / TASKS_FILENAME, store)
 
     if args.json:
-        print(json.dumps({"id": task_id, "status": "pending"}))
+        print(json.dumps({"id": task_id, "status": STATUS_PENDING}))
     else:
         print(task_id)
     return 0

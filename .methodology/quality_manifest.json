@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "generated_at_phase": 2,
+  "fr_ids": [
+    "FR-01",
+    "FR-02",
+    "FR-03",
+    "FR-04",
+    "FR-05"
+  ],
+  "nfr_dimension_mapping": {
+    "NFR-01": "performance",
+    "NFR-02": "security",
+    "NFR-03": "error_handling",
+    "NFR-04": "security",
+    "NFR-05": "readability",
+    "NFR-07": "error_handling",
+    "NFR-08": "error_handling",
+    "NFR-09": "performance",
+    "NFR-10": "readability"
+  },
+  "nfr_fr_mapping": {},
+  "nfr_traceability": {
+    "NFR-01": {
+      "type": "performance",
+      "target": "p95 < 50ms",
+      "module": "taskq.store"
+    },
+    "NFR-02": {
+      "type": "security",
+      "target": "shell=True count == 0",
+      "module": "taskq.executor"
+    },
+    "NFR-03": {
+      "type": "reliability",
+      "target": "100% atomic write; recovery <= cooldown+1s",
+      "module": "taskq.store"
+    },
+    "NFR-04": {
+      "type": "security",
+      "target": "100% redaction hit rate",
+      "module": "taskq.executor"
+    },
+    "NFR-05": {
+      "type": "maintainability",
+      "target": "100% docstring [FR-XX] coverage",
+      "module": "taskq.models"
+    },
+    "NFR-06": {
+      "type": "deployability",
+      "target": "8 TASKQ_* env vars centralised",
+      "module": "taskq.config"
+    },
+    "NFR-07": {
+      "type": "reliability",
+      "target": "no silent loss on fault injection",
+      "module": "taskq.store"
+    },
+    "NFR-08": {
+      "type": "reliability",
+      "target": "100% cross-process flock; no JSON corruption",
+      "module": "taskq.store"
+    },
+    "NFR-09": {
+      "type": "performance",
+      "target": "p95 < 100ms @ 1000 tasks; memory < 100MB",
+      "module": "taskq.store"
+    },
+    "NFR-10": {
+      "type": "maintainability",
+      "target": "100% schema migration success with backup",
+      "module": "taskq.store"
+    }
+  },
+  "quality_targets": {
+    "max_complexity": 15,
+    "min_coverage": 80,
+    "max_coupling": 0.3
+  },
+  "fr_module_traceability": {
+    "FR-01": "taskq.cli",
+    "FR-02": "taskq.executor",
+    "FR-03": "taskq.breaker",
+    "FR-04": "taskq.cache",
+    "FR-05": "taskq.cli"
+  },
+  "architecture_constraints": [
+    "no_circular_dependencies"
+  ],
+  "high_risk_modules": [
+    "taskq.executor",
+    "taskq.store"
+  ],
+  "gate_score_overrides": {
+    "performance": 75.0,
+    "security": 80.0,
+    "error_handling": 80.0,
+    "readability": 80.0,
+    "test_coverage": 80.0
+  },
+  "gate_results": {
+    "gate1": {},
+    "gate2": null,
+    "gate3": null,
+    "gate4": null
+  }
+}

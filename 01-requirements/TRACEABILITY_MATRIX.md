@@ -43,7 +43,7 @@
 | NFR ID | Test Coverage | Status |
 |--------|--------------|--------|
 | NFR-01 | test_nfr4_fault.py | VERIFIED |
-| NFR-02 | test_fr01.py, test_fr02.py, test_fr05.py, test_nfr_scan.py | VERIFIED |
+| NFR-02 | test_fr01.py, test_fr02.py, test_fr05.py, test_nfr_scan.py, test_security_threats.py | VERIFIED |
 | NFR-03 | test_fr01.py, test_fr03.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py, test_nfr_scan.py | VERIFIED |
 | NFR-04 | test_fr02.py, test_fr04.py, test_fr05.py | VERIFIED |
 | NFR-05 | test_fr05.py, test_nfr_scan.py | VERIFIED |
@@ -51,5 +51,5 @@
 | NFR-07 | test_fr01.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py, test_nfr_scan.py | VERIFIED |
 | NFR-08 | test_cross_process_store.py, test_fr01.py, test_fr02.py, test_fr03.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py | VERIFIED |
 | NFR-09 | test_fr02.py, test_fr03.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py, test_nfr_scan.py | VERIFIED |
-| NFR-10 | test_fr01.py, test_fr03.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py, test_nfr_scan.py | VERIFIED |
+| NFR-10 | test_fr01.py, test_fr03.py, test_fr04.py, test_fr05.py, test_nfr4_fault.py, test_nfr_scan.py, test_security_threats.py | VERIFIED |
 | NFR-99 | — | PENDING |

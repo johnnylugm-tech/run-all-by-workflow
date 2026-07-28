@@ -1,9 +1,9 @@
 {
   "state": "RUNNING",
-  "current_phase": 5,
-  "last_gate": 1,
+  "current_phase": 6,
+  "last_gate": 3,
   "last_fr": "FR-05",
-  "last_update": "2026-07-28T13:12:36.422695+00:00",
+  "last_update": "2026-07-28T13:28:28.962495+00:00",
   "language": "python",
   "last_push_checkpoint": "2026-07-28T07:43:04.083766+00:00",
   "last_push_checkpoint_phase": 2,
@@ -19,6 +19,6 @@
   },
   "test_inventory_checksum": "880eb1471fcdff1bbcafa8bde48db37eec0464712d304b5b99c5fe9acb05aabc",
   "phase_truth_passed": true,
-  "last_milestone_command": "push-milestone --type p5-baseline",
+  "last_milestone_command": "advance-phase --completed-phase 5",
   "last_milestone_at": "2026-07-28T13:16:34.409416+00:00"
 }

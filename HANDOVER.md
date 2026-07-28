@@ -1,8 +1,8 @@
 # Harness Methodology — Session Handover
 
-**Checkpoint**: `P3-gate2-20260728`  
-**Phase**: P3 — Implementation  
-**Generated**: 2026-07-28T11:00:51Z
+**Checkpoint**: `P4-entry-20260728`  
+**Phase**: P4 — Testing  
+**Generated**: 2026-07-28T11:27:28Z
 
 > ⚠️  **開始下一個工作階段前，請先執行 `/compact` 壓縮上下文**，再從「接下來的工作」繼續。
 
@@ -14,9 +14,9 @@
 # 1. Clone (if working directory cleared)
 git clone --recurse-submodules https://github.com/johnnylugm-tech/run-all-by-workflow && cd run-all-by-workflow
 
-# 2. Read plan and start Phase 4
+# 2. Read plan and continue Phase 4
 cat .methodology/phase4_plan.md
-# Follow SKILL.md §0.1 Phase 4 entry check, then execute
+# Follow the active plan and continue from where you left off
 ```
 
 ---
@@ -31,7 +31,7 @@ git clone --recurse-submodules https://github.com/johnnylugm-tech/run-all-by-wor
 git log --oneline -3
 
 # Confirm FSM state
-cat .methodology/state.json   # expected: phase=3 state=RUNNING last_gate=2
+cat .methodology/state.json   # expected: phase=4 state=RUNNING last_gate=2 last_fr=FR-05
 
 # Read active plan
 cat .methodology/phase4_plan.md
@@ -41,35 +41,38 @@ cat .methodology/phase4_plan.md
 |------|----|
 | Remote | `https://github.com/johnnylugm-tech/run-all-by-workflow` |
 | Branch | `main` |
-| State | `phase=3 state=RUNNING last_gate=2` |
+| State | `phase=4 state=RUNNING last_gate=2 last_fr=FR-05` |
 | Plan | `.methodology/phase4_plan.md` |
 
 ---
 
 ## 任務背景
 
-Gate 2 PASS — quality cycle complete.
+Phase 3 complete (5/5 FRs Gate 1 PASS). Gate 2 (score=91.96). Advancing to Phase 4.
+
+
+## P4 Entry Obligations
+
+> ⚠️ The following preflight findings would BLOCK entry to Phase 4. Resolve them before running the phase, otherwise the gate will fail.
+
+| Check | Rule | Location | Message |
+|-------|------|----------|---------|
+| `reliability_lint` | `py-pragma-no-cover` | `03-development/src/taskq/store.py:63` | WARNING py-pragma-no-cover 03-development/src/taskq/store.py:63 — resolve before entering the target phase |
 
 ## 目前執行狀況
 
-Gate 2 PASS: score=92.0.
+Phase 3: 5/5 FRs Gate 1 PASS. Gate 2 (score=91.96) — quality_complete. P4 entry has 1 obligation(s) to resolve — see below.
 
 ## 接下來的工作
 
-1. Proceed to P4: Testing
-2. Build full test suite (Gate 3 target ≥ 80)
-3. On Gate 3 PASS → call commit_and_push_gate(gate_num=3, ...)
+1. Follow SKILL.md §0.1 Phase 4 entry checklist
+2. Read the Phase 4 plan and execute
 
 ## 注意事項
 
 - 100% follow SKILL.md
 - Do NOT commit `.sessi-work/` or `.methodology/` runtime artifacts
 - Git failures are warnings — they never block the pipeline
-
-## 附加資訊
-
-- **gate**: 2
-- **score**: 92.0
 
 ---
 *由 `HandoverGenerator` 自動生成。下次 push 時此檔案將被覆寫。*

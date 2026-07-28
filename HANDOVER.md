@@ -76,3 +76,15 @@ Phase 3: 5/5 FRs Gate 1 PASS. Gate 2 (score=91.96) — quality_complete. P4 entr
 
 ---
 *由 `HandoverGenerator` 自動生成。下次 push 時此檔案將被覆寫。*
+
+## Sync Blocked — manual push required
+
+The Phase 3 advance handover commit landed locally but `git push origin main` did not pass the pre-push hook:
+
+```
+SYNC: FAIL — pre-push hook blocked the push
+WARNING py-pragma-no-cover 03-development/src/taskq/store.py:63
+[BLOCKED] 1 reliability finding(s) at phase 4
+```
+
+Resolve the blocker(s) above, then run `git push origin main` manually. Do NOT use `--no-verify` without explicit human sign-off.

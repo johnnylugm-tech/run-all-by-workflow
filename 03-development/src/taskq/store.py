@@ -60,7 +60,7 @@ def _atomic_write_json(path: Path, data: dict) -> None:
         os.replace(tmp, path)
     finally:
         if tmp.exists():
-            tmp.unlink()
+            tmp.unlink()  # atomic-write cleanup: fires when os.replace fails before tmp is renamed
 
 
 def update_task(home: Path, task_id: str, **fields) -> None:

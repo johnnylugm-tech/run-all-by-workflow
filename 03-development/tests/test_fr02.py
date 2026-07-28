@@ -400,8 +400,8 @@ def test_fr02_05_no_shell_true_safe_splitting():
         f"subprocess invocation (NFR-02)"
     )
     assert shlex_split_files, (
-        f"no source file under src/taskq uses shlex.split; FR-02 requires "
-        f"shlex.split() for safe command parsing (NFR-02)"
+        "no source file under src/taskq uses shlex.split; FR-02 requires "
+        "shlex.split() for safe command parsing (NFR-02)"
     )
 
 
@@ -549,3 +549,50 @@ def test_fr02_07_thread_safe_lossless_storage(taskq_home):
             f"task {tid} not terminal after concurrent run_all: "
             f"status={rec['status']!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Coverage-gap tests: exercise branches that 100% coverage requires but the
+# FR02-AC behavioural cases above do not hit. Each test name mirrors the
+# branch it covers (FR02-COV-decode-bytes, FR02-COV-run-unknown-id,
+# FR02-COV-run-all-empty) so the coverage report and the gate2 audit can
+# trace why every executable statement is exercised.
+# ---------------------------------------------------------------------------
+
+def test_fr02_cov_decode_capture_with_bytes(taskq_home):
+    """FR-02 coverage gap: ``executor._decode_capture`` must handle bytes
+    input from ``subprocess.TimeoutExpired`` whose ``stdout``/``stderr``
+    attributes are bytes on POSIX (FR-02 executor). The function decodes
+    with ``errors='replace'`` so non-UTF-8 bytes never raise.
+    """
+    from taskq.executor import _decode_capture
+    # Plain ASCII bytes round-trip identically.
+    assert _decode_capture(b"hello world") == "hello world"
+    # Non-UTF-8 bytes use the replacement-character escape hatch.
+    assert _decode_capture(b"\xff\xfe") == "��"
+    # str passes through unchanged; None becomes "".
+    assert _decode_capture("ok") == "ok"
+    assert _decode_capture(None) == ""
+
+
+def test_fr02_cov_run_returns_zero_for_unknown_id(taskq_home):
+    """FR-02 coverage gap: ``executor.run`` returns 0 (no-op) when the
+    requested ``task_id`` is not in the store. This branch is a defensive
+    guard for the CLI's ``taskq run <id>`` path when an id is mistyped.
+    """
+    rc = executor.run("deadbeef")
+    assert rc == 0, (
+        f"executor.run('deadbeef') returned {rc}; expected 0 for unknown id"
+    )
+
+
+def test_fr02_cov_run_all_returns_zero_when_no_pending(taskq_home):
+    """FR-02 coverage gap: ``executor.run_all`` returns 0 when the store
+    contains zero pending tasks. The CLI's ``taskq run --all`` must
+    short-circuit instead of spinning up a worker pool.
+    """
+    # Empty store — no tasks at all.
+    rc = executor.run_all()
+    assert rc == 0, (
+        f"executor.run_all() on empty store returned {rc}; expected 0"
+    )

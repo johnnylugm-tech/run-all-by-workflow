@@ -975,7 +975,6 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
     # ----- Scenario 1: success → exit 0 -----
     expected_exit = "0"
     scenario = "success"
-    setup = "submit_then_status"
     if expected_exit == "0":
         assert expected_exit == "0"  # FR05-AC7-exit-0
         task_id = _seed_via_cli(taskq_home, "echo hi")
@@ -988,7 +987,6 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
     # ----- Scenario 2: validation → exit 2 -----
     expected_exit = "2"
     scenario = "validation"
-    setup = "submit_empty"
     if expected_exit == "2":
         assert expected_exit == "2"  # FR05-AC7-exit-2
         result = _run_cli(["submit", ""], taskq_home)
@@ -1004,7 +1002,6 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
     # ----- Scenario 3: breaker OPEN → exit 3 -----
     expected_exit = "3"
     scenario = "breaker_open"
-    setup = "submit_then_run_with_open_breaker"
     if expected_exit == "3":
         assert expected_exit == "3"  # FR05-AC7-exit-3
         _seed_breaker_open(taskq_home)
@@ -1022,7 +1019,6 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
     # ----- Scenario 4: single-task timeout → exit 4 -----
     expected_exit = "4"
     scenario = "single_task_timeout"
-    setup = "submit_sleep_then_run"
     if expected_exit == "4":
         assert expected_exit == "4"  # FR05-AC7-exit-4
         # The previous scenario left breaker.json in OPEN state. Wipe it
@@ -1043,7 +1039,6 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
     # ----- Scenario 5: internal error → exit 1 -----
     expected_exit = "1"
     scenario = "internal_error"
-    setup = "corrupt_breaker"
     if expected_exit == "1":
         assert expected_exit == "1"  # FR05-AC7-exit-1
         _seed_breaker_corrupt(taskq_home)

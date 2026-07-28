@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import hashlib
 import json as json_lib
-import os
 import threading
 import uuid
 from pathlib import Path

@@ -513,3 +513,36 @@ def test_fr01_07_json_output(taskq_home):
         else:
             os.environ["TASKQ_HOME"] = saved_env
         shutil.rmtree(home2, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Coverage-gap test: `taskq.__main__` is the module entry point for
+# ``python -m taskq`` (SAD §2.2.1). Its import statements live in
+# `taskq/__main__.py` lines 9-13. The integration suite does spawn
+# ``python -m taskq`` subprocesses, but pytest-cov does not combine
+# subprocess coverage into the same report (separate coverage files
+# for the cross-process tests are written but not aggregated at the
+# 100%-gate level). To keep the ``--cov-fail-under=100`` invariant
+# honest without disabling the integration coverage, this test imports
+# the module in-process (so ``__name__ == "taskq.__main__"`` and the
+# ``if __name__ == "__main__":`` guard does NOT fire) and asserts the
+# entry-point module is importable.
+# ---------------------------------------------------------------------------
+
+def test_fr01_cov_dunder_main_importable() -> None:
+    """FR-01 coverage gap: ``taskq.__main__`` must be importable.
+
+    ``python -m taskq`` resolves to ``taskq/__main__.py``. The integration
+    suite exercises that subprocess path, but pytest-cov measures only the
+    in-process test run. Importing the module here covers the
+    ``from __future__`` / ``import sys`` / ``from taskq.cli import main``
+    statements (lines 9-13) without running the CLI dispatch logic
+    (guarded by ``__name__ == "__main__"``).
+    """
+    import importlib
+    mod = importlib.import_module("taskq.__main__")
+    # The guard prevents dispatch unless the file is the script entry point.
+    assert mod.__name__ == "taskq.__main__"
+    # The `main` symbol is the public re-export from taskq.cli.
+    from taskq.cli import main as cli_main
+    assert mod.main is cli_main

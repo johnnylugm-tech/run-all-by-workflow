@@ -1,8 +1,8 @@
 # Harness Methodology — Session Handover
 
-**Checkpoint**: `P4-pre-gate3-20260728`  
-**Phase**: P4 — Testing  
-**Generated**: 2026-07-28T12:45:55Z
+**Checkpoint**: `P5-entry-20260728`  
+**Phase**: P5 — Review Baseline  
+**Generated**: 2026-07-28T12:57:14Z
 
 > ⚠️  **開始下一個工作階段前，請先執行 `/compact` 壓縮上下文**，再從「接下來的工作」繼續。
 
@@ -14,8 +14,8 @@
 # 1. Clone (if working directory cleared)
 git clone --recurse-submodules https://github.com/johnnylugm-tech/run-all-by-workflow && cd run-all-by-workflow
 
-# 2. Read plan and continue Phase 4
-cat .methodology/phase4_plan.md
+# 2. Read plan and continue Phase 5
+cat .methodology/phase5_plan.md
 # Follow the active plan and continue from where you left off
 ```
 
@@ -31,75 +31,54 @@ git clone --recurse-submodules https://github.com/johnnylugm-tech/run-all-by-wor
 git log --oneline -3
 
 # Confirm FSM state
-cat .methodology/state.json   # expected: phase=4 state=RUNNING last_gate=3
+cat .methodology/state.json   # expected: phase=5 state=RUNNING last_gate=3 last_fr=FR-05
 
 # Read active plan
-cat .methodology/phase4_plan.md
+cat .methodology/phase5_plan.md
 ```
 
 | 欄位 | 值 |
 |------|----|
 | Remote | `https://github.com/johnnylugm-tech/run-all-by-workflow` |
 | Branch | `main` |
-| State | `phase=4 state=RUNNING last_gate=3` |
-| Plan | `.methodology/phase4_plan.md` |
+| State | `phase=5 state=RUNNING last_gate=3 last_fr=FR-05` |
+| Plan | `.methodology/phase5_plan.md` |
 
 ---
 
 ## 任務背景
 
-P4 Testing complete. Gate 3 not yet executed.
+Phase 4 complete (5/5 FRs Gate 1 PASS). Gate 3 (score=97.14). Advancing to Phase 5.
+
+
+## P5 Entry Obligations
+
+> ⚠️ The following preflight findings would BLOCK entry to Phase 5. Resolve them before running the phase, otherwise the gate will fail.
+
+| Check | Rule | Location | Message |
+|-------|------|----------|---------|
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_fr01_injection_blacklist_rejected' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_no_shell_true_anywhere' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_fr02_timeout_cancels_subprocess' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_fr02_redaction_replaces_secret_lines' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_fr_cross_process_flock_no_corruption' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_schema_migration_v0_backup_present' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
+| `artifact_consistency` | `SEC-R8` | `—` | threat verification test 'test_fr01_duplicate_name_rejected' not found under /Users/johnny/projects/run-all-by-workflow/03-development/tests — write the test before Phase 5. |
 
 ## 目前執行狀況
 
-All 5 FR(s) Gate 1 re-eval PASS [FR-01,FR-02,FR-03,FR-04,FR-05]. Gate 3 (14 dims) not yet started.
-
-**A/B Session Results:**
-  - None / preflight-probe: **complete**
-  - FR-01 / developer: **ERROR**
-  - ? / tool:amend-sab: **COMPLETED**
-  - FR-02 / developer: **complete**
-  - FR-03 / developer: **complete**
-  - FR-04 / developer: **complete**
-  - FR-05 / developer: **complete**
-
-**Recently Committed Files:**
-  - `.methodology/crg_baseline_p4.json`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_419d3898.yaml`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_4363acde.yaml`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_4940c017.yaml`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_5f923ee8.yaml`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_cb9e84f7.yaml`
-  - `.methodology/decision_logs/2026-07-28/GATE_4_dfcf4c61.yaml`
-  - `.methodology/effort_metrics.db`
-  - `.methodology/gate3_result.json`
-  - `.methodology/gate_timestamps.jsonl`
-  - `.methodology/lessons/999b612a5a86.md`
-  - `.methodology/lessons/c2c68422d7a1.md`
-  - `.methodology/lessons/e40dca30c039.md`
-  - `.methodology/quality_manifest.json`
-  - `.methodology/state.json`
-  - `00-summary/Phase4_STAGE_PASS.md`
-  - `CLAUDE.md`
-  - `HANDOVER.md`
-  - `pyproject.toml`
-  - `.methodology/bug_hunt_report.json`
+Phase 4: 5/5 FRs Gate 1 PASS. Gate 3 (score=97.14) — quality_complete. P5 entry has 7 obligation(s) to resolve — see below.
 
 ## 接下來的工作
 
-1. Run Gate 3 evaluation (14 dims, target score ≥ 80)
-2. Fix any failures during evaluation
-3. On Gate 3 PASS → `finalize-gate --gate 3` handles push + HANDOVER
+1. Follow SKILL.md §0.1 Phase 5 entry checklist
+2. Read the Phase 5 plan and execute
 
 ## 注意事項
 
 - 100% follow SKILL.md
 - Do NOT commit `.sessi-work/` or `.methodology/` runtime artifacts
 - Git failures are warnings — they never block the pipeline
-
-## 附加資訊
-
-- **fr_count**: 5
 
 ---
 *由 `HandoverGenerator` 自動生成。下次 push 時此檔案將被覆寫。*

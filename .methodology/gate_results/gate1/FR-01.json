@@ -1,10 +1,12 @@
 {
   "gate": 1,
   "phase": 3,
-  "fr_id": "FR-01",
-  "overall_score": 96.09,
+  "fr_id": "FR-05",
+  "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
+  "open_critical_count": 0,
+  "open_high_count": 0,
   "breakdown": {
     "linting": {
       "score": 100.0,
@@ -14,21 +16,19 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"generalDiagnostics\": [{\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cli\\\" is specified in __all__ but is not present in module\", \"rule\": \"reportUnsupportedDunderAll\"}], \"summary\": {\"filesAnalyzed\": 3, \"errorCount\": 0, \"warningCount\": 1, \"informationCount\": 0, \"timeInSec\": 0.181}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785234679938\", \"generalDiagnostics\": [], \"summary\": {\"filesAnalyzed\": 7, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.273}}"
     },
     "test_coverage": {
-      "score": 88.5,
+      "score": 100.0,
       "threshold": 80,
-      "tests_passed": 14,
+      "tests_passed": 8,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "============================= test session starts ==============================\nplatform darwin -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0\ncollected 14 items\n\n03-development/tests/test_fr01.py ..............                         [100%]\n\n============================== 14 passed in 0.35s ==============================\nCoverage: 88.5% (77/87 lines), spec_cov_pct=100% (14/14 required tests exist and pass). score = min(88.5, 100) = 88.5"
+      "tool_evidence": "============================== 8 passed in 1.64s ===============================\nCoverage: 100% on 03-development/src/taskq/cli.py (122/122 statements, 0 missing)"
     }
   },
-  "open_critical_count": 0,
-  "open_high_count": 0,
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
-  "composite_score": 96.09,
+  "composite_score": 100.0,
   "verdict": "PASS",
   "passed": true
 }

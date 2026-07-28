@@ -165,7 +165,10 @@ def test_bh_f3_subprocess_output_redacted(taskq_home: Path) -> None:
     """
     # Build a command that prints a fake API key. `;` is blacklisted so
     # use a python one-liner that emits the secret to stdout.
-    secret = "sk-ZXAMPLE0123456789ABCDEF0123456789"
+    # NOTE: kept lower-entropy / non-credential-shaped so secrets_scanning
+    # tools (gitleaks) do not flag it as a real key — the redaction
+    # regex above only needs `sk-` + 16+ alphanum to match.
+    secret = "sk-test-redact-dummy-value-aaaaaaaaaa"
     cmd = f'python3 -c "print(\'{secret}\')"'
 
     submit = _run_cli(taskq_home, "submit", "--", cmd)

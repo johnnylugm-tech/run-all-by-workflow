@@ -239,7 +239,15 @@ def run(task_id: str, use_cache: bool = False) -> int:
     else:
         circuit.record_failure()
 
-    return EXIT_TIMEOUT if outcome["status"] == "timeout" else 0
+    if outcome["status"] == "timeout":
+        # Single-task timeout surface a diagnostic to stderr so the
+        # operator can see why exit 4 (not exit 0) was returned.
+        print(
+            f"task {task_id} timed out after {timeout}s",
+            file=sys.stderr,
+        )
+        return EXIT_TIMEOUT
+    return 0
 
 
 def run_all() -> int:

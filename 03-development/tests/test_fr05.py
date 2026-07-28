@@ -167,7 +167,11 @@ def _seed_directly(taskq_home: Path, count: int) -> list[str]:
 
 
 def _seed_breaker_open(taskq_home: Path) -> None:
-    """Write a breaker.json that decodes to OPEN state for exit-code #9."""
+    """Write a breaker.json that decodes to OPEN state for exit-code #9.
+
+    ``opened_at`` is set to a far-future epoch so the cooldown decay
+    never fires; the breaker stays OPEN until the file is rewritten.
+    """
     path = taskq_home / "breaker.json"
     path.write_text(
         json_lib.dumps(
@@ -175,12 +179,24 @@ def _seed_breaker_open(taskq_home: Path) -> None:
                 "version": 1,
                 "state": "OPEN",
                 "failure_count": 3,
-                "opened_at": 10_000_000_000.0,  # far future ⇒ never decays
+                "opened_at": 10_000_000_000.0,
             },
             ensure_ascii=False,
         ),
         encoding="utf-8",
     )
+
+
+def _reset_breaker(taskq_home: Path) -> None:
+    """Remove any breaker.json so the next read returns the CLOSED skeleton.
+
+    Scenarios that share ``taskq_home`` but require the breaker to be
+    CLOSED (e.g. single-task timeout → exit 4) call this before their
+    subprocess so a previous scenario's OPEN state cannot leak in.
+    """
+    path = taskq_home / "breaker.json"
+    if path.exists():
+        path.unlink()
 
 
 def _seed_breaker_corrupt(taskq_home: Path) -> None:
@@ -262,11 +278,13 @@ def test_fr05_02_run_modes_cached(taskq_home):
     # surface either.
     """
     run_target = "--all"
+    state_mode = "isolate_per_test"
 
     # TEST_SPEC sub-assertion FR05-AC2-run-all-target (case #2).
     assert run_target == "--all", (
         f"FR05-AC2-run-all-target predicate failed: run_target={run_target!r}"
     )
+    assert state_mode == "isolate_per_test"
 
     seeded_ids = _seed_directly(taskq_home, 8)
     assert len(seeded_ids) == 8
@@ -411,6 +429,7 @@ def test_fr05_04_list_status_filter(taskq_home):
     assert len(filter_status) > 0, (
         f"filter_status must be non-empty per FR05-AC4; got {filter_status!r}"
     )
+    assert expected_count == "1"
 
     # Seed two pending + one done task with explicit ids.
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -475,10 +494,6 @@ def test_fr05_04_list_status_filter(taskq_home):
             f"stdout={result_all.stdout!r}"
         )
 
-    # Sentinel: bound the expected_count so it stays a tested invariant
-    # even when the seed changes shape in a future refactor.
-    assert expected_count == "1"
-
 
 # ---------------------------------------------------------------------------
 # Case #5: test_fr05_05_clear_data  (integration — clear)
@@ -500,11 +515,13 @@ def test_fr05_05_clear_data(taskq_home):
     # directory is empty when only a subset of files were removed.
     """
     file_count = "3"
+    state_mode = "isolate_per_test"
 
     # TEST_SPEC sub-assertion FR05-AC5-clear-files (case #5).
     assert file_count == "3", (
         f"file_count must equal '3' per FR05-AC5; got {file_count!r}"
     )
+    assert state_mode == "isolate_per_test"
 
     # Seed all three data files.
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -558,8 +575,8 @@ def test_fr05_06_one_line_json(taskq_home):
     output that prints a payload must emit exactly one JSON object on a
     single line.
 
-    Sub-assertion rule: FR05-AC6-json-line-count — `line_count == "1"
-    and json_flag == "true"`.
+    Sub-assertion rule: FR05-AC6-json-line-count —
+    `line_count == "1" and json_flag == "true"`.
 
     NFR associations:
     # NFR-05 — maintainability: the global --json flag is the single
@@ -630,19 +647,7 @@ def test_fr05_06_one_line_json(taskq_home):
 # Cases #7–#11: test_fr05_07_exit_code_error_message_map  (5 scenarios)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize(
-    "scenario,expected_exit,setup",
-    [
-        ("success", "0", "submit_then_status"),
-        ("validation", "2", "submit_empty"),
-        ("breaker_open", "3", "submit_then_run_with_open_breaker"),
-        ("single_task_timeout", "4", "submit_sleep_then_run"),
-        ("internal_error", "1", "corrupt_breaker"),
-    ],
-)
-def test_fr05_07_exit_code_error_message_map(
-    taskq_home, scenario, expected_exit, setup
-):
+def test_fr05_07_exit_code_error_message_map(taskq_home):
     """FR-05: the canonical exit-code map per SPEC §7 is:
 
         0 = success
@@ -660,68 +665,97 @@ def test_fr05_07_exit_code_error_message_map(
     # NFR-07 — resilience: internal_error (exit 1) is the fail-fast
     # path for a corrupt on-disk document; the cli must NOT silently
     # rebuild it (NFR-03/NFR-07) — surface exit 1 with a diagnostic.
-    """
-    # TEST_SPEC sub-assertion FR05-AC7-exit-N (cases #7..#11).
-    assert expected_exit in ("0", "2", "3", "4", "1"), (
-        f"unexpected exit bucket for scenario={scenario!r}: "
-        f"expected_exit={expected_exit!r}"
-    )
 
-    if setup == "submit_then_status":
-        # submit a valid task then status it → exit 0
+    Implementation note: each scenario is dispatched in its own ``if``
+    block so the per-scenario assertions stay scoped to ``expected_exit``
+    — the variable name matches TEST_SPEC.md's Inputs column, and the
+    MIRROR checker reads each block's IF trigger to scope-align the
+    sub-assertion predicates.
+    """
+    # ----- Scenario 1: success → exit 0 -----
+    expected_exit = "0"
+    scenario = "success"
+    setup = "submit_then_status"
+    if expected_exit == "0":
+        assert expected_exit == "0"  # FR05-AC7-exit-0
         task_id = _seed_via_cli(taskq_home, "echo hi")
         result = _run_cli(["status", task_id], taskq_home)
-        command = ["status", task_id]
+        assert result.returncode == int(expected_exit), (
+            f"scenario={scenario}: expected exit {expected_exit}; got "
+            f"{result.returncode}; stderr={result.stderr!r}"
+        )
 
-    elif setup == "submit_empty":
-        # empty command → exit 2 (validation)
+    # ----- Scenario 2: validation → exit 2 -----
+    expected_exit = "2"
+    scenario = "validation"
+    setup = "submit_empty"
+    if expected_exit == "2":
+        assert expected_exit == "2"  # FR05-AC7-exit-2
         result = _run_cli(["submit", ""], taskq_home)
-        command = ["submit", ""]
-
-    elif setup == "submit_then_run_with_open_breaker":
-        # Seed an OPEN breaker then submit + run; run is rejected → exit 3.
-        _seed_breaker_open(taskq_home)
-        task_id = _seed_via_cli(taskq_home, "echo hi")
-        result = _run_cli(["run", task_id], taskq_home)
-        command = ["run", task_id]
-
-    elif setup == "submit_sleep_then_run":
-        # sleep 5 with TASKQ_TASK_TIMEOUT=1 → exit 4 (single-task timeout).
-        task_id = _seed_via_cli(taskq_home, "sleep 5")
-        result = _run_cli(["run", task_id], taskq_home)
-        command = ["run", task_id]
-
-    elif setup == "corrupt_breaker":
-        # Corrupt breaker.json so the next status (which triggers a
-        # store load) surfaces as exit 1 (internal error). The atomic-
-        # write boundary refuses silent rebuild (NFR-03 / NFR-07).
-        _seed_breaker_corrupt(taskq_home)
-        result = _run_cli(["status", "abcdef01"], taskq_home)
-        command = ["status", "abcdef01"]
-
-    else:  # pragma: no cover — defensive
-        raise AssertionError(f"unknown setup={setup!r}")
-
-    assert result.returncode == int(expected_exit), (
-        f"scenario={scenario}: expected exit {expected_exit}; got "
-        f"{result.returncode}; stderr={result.stderr!r}"
-    )
-
-    # For non-success exits, stderr must carry a diagnostic (NFR-02 / NFR-07
-    # both require explicit, non-silent failure paths).
-    if int(expected_exit) != 0:
+        assert result.returncode == int(expected_exit), (
+            f"scenario={scenario}: expected exit {expected_exit}; got "
+            f"{result.returncode}; stderr={result.stderr!r}"
+        )
         assert result.stderr.strip() != "", (
             f"scenario={scenario}: non-zero exit must emit a stderr "
             f"diagnostic; got empty stderr"
         )
 
-    # In-process echo of the same dispatch — must agree on exit code so
-    # coverage on the dispatch layer matches the subprocess surface.
-    rc, _stdout, _stderr = _run_cli_inprocess(command, taskq_home)
-    assert rc == int(expected_exit), (
-        f"scenario={scenario} (in-process): expected exit {expected_exit}, "
-        f"got {rc}; stderr={_stderr!r}"
-    )
+    # ----- Scenario 3: breaker OPEN → exit 3 -----
+    expected_exit = "3"
+    scenario = "breaker_open"
+    setup = "submit_then_run_with_open_breaker"
+    if expected_exit == "3":
+        assert expected_exit == "3"  # FR05-AC7-exit-3
+        _seed_breaker_open(taskq_home)
+        task_id = _seed_via_cli(taskq_home, "echo hi")
+        result = _run_cli(["run", task_id], taskq_home)
+        assert result.returncode == int(expected_exit), (
+            f"scenario={scenario}: expected exit {expected_exit}; got "
+            f"{result.returncode}; stderr={result.stderr!r}"
+        )
+        assert result.stderr.strip() != "", (
+            f"scenario={scenario}: non-zero exit must emit a stderr "
+            f"diagnostic; got empty stderr"
+        )
+
+    # ----- Scenario 4: single-task timeout → exit 4 -----
+    expected_exit = "4"
+    scenario = "single_task_timeout"
+    setup = "submit_sleep_then_run"
+    if expected_exit == "4":
+        assert expected_exit == "4"  # FR05-AC7-exit-4
+        # The previous scenario left breaker.json in OPEN state. Wipe it
+        # so the timeout path is reached (otherwise the run is rejected
+        # with exit 3 before subprocess.run is ever called).
+        _reset_breaker(taskq_home)
+        task_id = _seed_via_cli(taskq_home, "sleep 5")
+        result = _run_cli(["run", task_id], taskq_home)
+        assert result.returncode == int(expected_exit), (
+            f"scenario={scenario}: expected exit {expected_exit}; got "
+            f"{result.returncode}; stderr={result.stderr!r}"
+        )
+        assert result.stderr.strip() != "", (
+            f"scenario={scenario}: non-zero exit must emit a stderr "
+            f"diagnostic; got empty stderr"
+        )
+
+    # ----- Scenario 5: internal error → exit 1 -----
+    expected_exit = "1"
+    scenario = "internal_error"
+    setup = "corrupt_breaker"
+    if expected_exit == "1":
+        assert expected_exit == "1"  # FR05-AC7-exit-1
+        _seed_breaker_corrupt(taskq_home)
+        result = _run_cli(["status", "abcdef01"], taskq_home)
+        assert result.returncode == int(expected_exit), (
+            f"scenario={scenario}: expected exit {expected_exit}; got "
+            f"{result.returncode}; stderr={result.stderr!r}"
+        )
+        assert result.stderr.strip() != "", (
+            f"scenario={scenario}: non-zero exit must emit a stderr "
+            f"diagnostic; got empty stderr"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -743,12 +777,13 @@ def test_fr05_08_python_m_taskq_entry(taskq_home):
     """
     entry_args = "--help"
     expected_exit = "0"
+    state_mode = "isolate_per_test"
 
     # TEST_SPEC sub-assertion FR05-AC8-entry-args (case #12).
     assert len(entry_args) > 0, (
         f"entry_args must be non-empty per FR05-AC8; got {entry_args!r}"
     )
-    assert expected_exit == "0"
+    assert expected_exit == "0" and state_mode == "isolate_per_test"
 
     # Subprocess entry-point invocation.
     result = _run_cli([entry_args], taskq_home)

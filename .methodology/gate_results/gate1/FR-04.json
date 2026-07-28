@@ -1,7 +1,7 @@
 {
   "gate": 1,
   "phase": 3,
-  "fr_id": "FR-04",
+  "fr_id": "FR-05",
   "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
@@ -16,15 +16,15 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"summary\": {\"filesAnalyzed\": 7, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.26}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785234679938\", \"generalDiagnostics\": [], \"summary\": {\"filesAnalyzed\": 7, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.273}}"
     },
     "test_coverage": {
       "score": 100.0,
       "threshold": 80,
-      "tests_passed": 6,
+      "tests_passed": 8,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "collected 6 items\n03-development/tests/test_fr04.py ......                                 [100%]\n\n============================== 6 passed in 0.03s ===============================\n\nCoverage: 100% (38/38 lines covered) on 03-development/src/taskq/cache.py\nRequired tests present: test_fr04_01_sha256_signature, test_fr04_02_valid_replay_no_subprocess, test_fr04_03_missing_entry_executes, test_fr04_04_expired_entry_executes, test_fr04_05_successful_cache_persistence, test_fr04_06_concurrent_cache_atomicity (6/6)"
+      "tool_evidence": "============================== 8 passed in 1.64s ===============================\nCoverage: 100% on 03-development/src/taskq/cli.py (122/122 statements, 0 missing)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",

@@ -12,3 +12,6 @@
 {"phase": 3, "gate": 2, "fr_id": "phase", "ts": 1785236451.196238, "source": "finalize"}
 {"phase": 4, "gate": 1, "fr_id": "FR-01", "ts": 1785238632.6055129, "source": "finalize"}
 {"phase": 4, "gate": 1, "fr_id": "FR-02", "ts": 1785238760.380447, "source": "finalize"}
+{"phase": 4, "gate": 1, "fr_id": "FR-01", "ts": 1785238976.186466, "source": "skip"}
+{"phase": 4, "gate": 1, "fr_id": "FR-02", "ts": 1785238976.633803, "source": "skip"}
+{"phase": 4, "gate": 1, "fr_id": "FR-03", "ts": 1785239013.026298, "source": "finalize"}

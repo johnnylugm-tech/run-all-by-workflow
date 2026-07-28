@@ -1,7 +1,7 @@
 {
   "gate": 1,
   "phase": 4,
-  "fr_id": "FR-02",
+  "fr_id": "FR-03",
   "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
@@ -14,15 +14,15 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785238973435\", \"generalDiagnostics\": [{\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cache\\\" is specified in __all__ but is not present in module\"}], \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
     },
     "test_coverage": {
       "score": 100.0,
       "threshold": 80,
-      "tests_passed": 10,
+      "tests_passed": 7,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "collected 10 items\n03-development/tests/test_fr02.py ..........                             [100%]\n============================== 10 passed in 5.15s ==============================\ncoverage_pct=100.0 (88/88 lines covered), spec_cov_pct=100% (0 missing)"
+      "tool_evidence": "collected 7 items\n03-development/tests/test_fr03.py .......                              [100%]\n============================== 7 passed in 0.06s ===============================\ncoverage_pct=100.0 (66/66 lines covered), spec_cov_pct=100% (7/7 required tests present: test_fr03_01_retry_cap, test_fr03_02_exponential_delay_injected_sleep, test_fr03_03_threshold_opens_breaker, test_fr03_04_open_rejection_no_subprocess, test_fr03_05_half_open_success_closes_resets, test_fr03_06_half_open_failure_reopens, test_fr03_07_cross_process_persistent_breaker)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",

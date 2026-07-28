@@ -1,6 +1,6 @@
 {
   "gate": 1,
-  "phase": 3,
+  "phase": 4,
   "fr_id": "FR-05",
   "overall_score": 100.0,
   "quality_complete": true,
@@ -16,7 +16,7 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785234679938\", \"generalDiagnostics\": [], \"summary\": {\"filesAnalyzed\": 7, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.273}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
     },
     "test_coverage": {
       "score": 100.0,
@@ -24,7 +24,7 @@
       "tests_passed": 8,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "============================== 8 passed in 1.64s ===============================\nCoverage: 100% on 03-development/src/taskq/cli.py (122/122 statements, 0 missing)"
+      "tool_evidence": "collected 8 items\n\n03-development/tests/test_fr05.py ........                               [100%]\n\n============================== 8 passed in 1.66s ===============================\ncoverage_pct=100.0 (122 stmts, 03-development/src/taskq/cli.py), spec_cov_pct=100% (8/8 unique required tests)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",

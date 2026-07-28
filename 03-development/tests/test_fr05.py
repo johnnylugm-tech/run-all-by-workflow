@@ -251,6 +251,122 @@ def test_fr05_01_submit_command(taskq_home):
         f"in-process: submit stdout must be 8-hex id; got {stdout!r}"
     )
 
+    # --- In-process validation paths (mirrors the subprocess exit-2 map) ---
+    # Every rejection flows through cli._fail, so stderr must be non-empty.
+
+    # Empty / all-whitespace command → exit 2 (FR-01 rule, FR-05 dispatch).
+    for bad in ("", "   \t  "):
+        rc, stdout, stderr = _run_cli_inprocess(["submit", bad], taskq_home)
+        assert rc == 2, (
+            f"in-process: submit {bad!r} returned {rc}; expected 2"
+        )
+        assert stderr.startswith("submit: "), (
+            f"in-process: rejection must carry a 'submit:' diagnostic; got "
+            f"{stderr!r}"
+        )
+        assert stdout == "", (
+            f"in-process: a rejected submit must print nothing on stdout; "
+            f"got {stdout!r}"
+        )
+
+    # Length > 1000 → exit 2, and the diagnostic names the actual length.
+    too_long = "a" * (cli.MAX_COMMAND_LENGTH + 1)
+    rc, _stdout, stderr = _run_cli_inprocess(["submit", too_long], taskq_home)
+    assert rc == 2, f"in-process: over-length submit returned {rc}; expected 2"
+    assert str(len(too_long)) in stderr, (
+        f"in-process: over-length diagnostic must name the length; got "
+        f"{stderr!r}"
+    )
+
+    # A command of EXACTLY the maximum length is accepted (boundary).
+    rc, _stdout, stderr = _run_cli_inprocess(
+        ["submit", "a" * cli.MAX_COMMAND_LENGTH], taskq_home
+    )
+    assert rc == 0, (
+        f"in-process: a {cli.MAX_COMMAND_LENGTH}-char command is at the "
+        f"boundary and must be accepted; got {rc}; stderr={stderr!r}"
+    )
+
+    # Every blacklisted injection character → exit 2, first offender named.
+    for char in ";|&$><`":
+        rc, _stdout, stderr = _run_cli_inprocess(
+            ["submit", f"echo hi {char} whoami"], taskq_home
+        )
+        assert rc == 2, (
+            f"in-process: injection char {char!r} must be rejected; got {rc}"
+        )
+        assert repr(char) in stderr, (
+            f"in-process: diagnostic must name the offending char {char!r}; "
+            f"got {stderr!r}"
+        )
+
+    # --- Duplicate --name among pending/running tasks → exit 2 ---
+    rc, stdout, stderr = _run_cli_inprocess(
+        ["submit", "echo named", "--name", "dup-demo"], taskq_home
+    )
+    assert rc == 0, f"in-process: first --name submit returned {rc}; stderr={stderr!r}"
+    first_id = stdout.strip()
+    assert _read_tasks_json(taskq_home)["tasks"][first_id]["name"] == "dup-demo", (
+        "in-process: --name must be persisted on the task record"
+    )
+
+    before = _read_tasks_json(taskq_home)["tasks"]
+    rc, _stdout, stderr = _run_cli_inprocess(
+        ["submit", "echo other", "--name", "dup-demo"], taskq_home
+    )
+    assert rc == 2, (
+        f"in-process: duplicate --name must be rejected with exit 2; got {rc}"
+    )
+    assert "dup-demo" in stderr, (
+        f"in-process: duplicate-name diagnostic must name the collision; got "
+        f"{stderr!r}"
+    )
+    after = _read_tasks_json(taskq_home)["tasks"]
+    assert len(after) == len(before), (
+        f"in-process: a rejected duplicate name must not append a task; "
+        f"{len(before)} -> {len(after)}"
+    )
+
+    # The same name is reusable once the holder leaves pending/running.
+    stored = _read_tasks_json(taskq_home)
+    stored["tasks"][first_id]["status"] = "done"
+    (taskq_home / "tasks.json").write_text(
+        json_lib.dumps(stored, ensure_ascii=False), encoding="utf-8"
+    )
+    rc, _stdout, stderr = _run_cli_inprocess(
+        ["submit", "echo reuse", "--name", "dup-demo"], taskq_home
+    )
+    assert rc == 0, (
+        f"in-process: a name held only by a terminal task is reusable; got "
+        f"{rc}; stderr={stderr!r}"
+    )
+
+    # --- submit --json → single-line JSON with id + pending status ---
+    rc, stdout, _stderr = _run_cli_inprocess(
+        ["submit", "echo json-mode", "--json"], taskq_home
+    )
+    assert rc == 0, f"in-process: submit --json returned {rc}; expected 0"
+    assert "\n" not in stdout.rstrip(), (
+        f"in-process: submit --json must be one line; got {stdout!r}"
+    )
+    payload = json_lib.loads(stdout)
+    assert re.fullmatch(r"[0-9a-f]{8}", payload["id"]), (
+        f"in-process: submit --json id must be 8-hex; got {payload!r}"
+    )
+    assert payload["status"] == "pending", (
+        f"in-process: submit --json status must be 'pending'; got {payload!r}"
+    )
+
+    # --- Atomic-write boundary: no orphan tmp/backup files remain ---
+    leftovers = [
+        p.name
+        for p in taskq_home.iterdir()
+        if p.name.endswith(".tmp") or p.name.endswith("~")
+    ]
+    assert leftovers == [], (
+        f"atomic write must leave no orphan tmp/backup files; found {leftovers}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Case #2: test_fr05_02_run_modes_cached  (integration — run --all dispatch)
@@ -328,6 +444,30 @@ def test_fr05_02_run_modes_cached(taskq_home):
     finally:
         shutil.rmtree(home2, ignore_errors=True)
 
+    # --- In-process: `run <id> --cached` forwards use_cache=True ---
+    # Recorded through a stub so the assertion is on the DISPATCH contract
+    # (cli -> executor.run(task_id, use_cache=...)), not on cache behaviour
+    # (which test_fr04 owns).
+    calls = []
+
+    def _record_run(task_id, use_cache=False):
+        calls.append((task_id, use_cache))
+        return 0
+
+    saved_run = cli.executor.run
+    try:
+        cli.executor.run = _record_run
+        rc = cli.main(["run", "deadbeef", "--cached"])
+        assert rc == 0, f"in-process: run --cached returned {rc}; expected 0"
+        rc = cli.main(["run", "deadbeef"])
+        assert rc == 0, f"in-process: run <id> returned {rc}; expected 0"
+    finally:
+        cli.executor.run = saved_run
+
+    assert calls == [("deadbeef", True), ("deadbeef", False)], (
+        f"cli must forward the --cached flag as use_cache; got {calls!r}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Case #3: test_fr05_03_status_all_fields  (integration — status <id>)
@@ -399,6 +539,61 @@ def test_fr05_03_status_all_fields(taskq_home):
     )
     assert task_id in stdout, (
         f"status output must include the task id {task_id!r}; got {stdout!r}"
+    )
+
+    # --- In-process variant: same handler, measurable coverage ---
+    rc, stdout, stderr = _run_cli_inprocess(["status", task_id], taskq_home)
+    assert rc == 0, (
+        f"in-process: status returned {rc}; expected 0; stderr={stderr!r}"
+    )
+    # Text mode renders one `key: value` line per persisted field, id first.
+    lines = stdout.strip().split("\n")
+    assert lines[0] == f"id: {task_id}", (
+        f"in-process: first status line must be the id; got {lines[0]!r}"
+    )
+    for field, value in (
+        ("status", "pending"),
+        ("command", "echo hi"),
+        ("name", "status-demo"),
+    ):
+        assert f"{field}: {value}" in lines, (
+            f"in-process: status text must render {field!r}; got {lines!r}"
+        )
+    assert any(line.startswith("created_at: ") for line in lines), (
+        f"in-process: status text must render created_at; got {lines!r}"
+    )
+
+    # --json on the same record → one line, every field preserved.
+    rc, stdout, _stderr = _run_cli_inprocess(
+        ["--json", "status", task_id], taskq_home
+    )
+    assert rc == 0, f"in-process: --json status returned {rc}; expected 0"
+    assert "\n" not in stdout.rstrip(), (
+        f"in-process: --json status must be one line; got {stdout!r}"
+    )
+    payload = json_lib.loads(stdout)
+    assert payload["id"] == task_id
+    assert payload["status"] == "pending"
+    assert payload["command"] == "echo hi"
+    assert payload["name"] == "status-demo"
+
+    # `--json` is GLOBAL: accepted in trailing position too (SAD §3.1).
+    rc, trailing, _stderr = _run_cli_inprocess(
+        ["status", task_id, "--json"], taskq_home
+    )
+    assert rc == 0, f"in-process: trailing --json returned {rc}; expected 0"
+    assert json_lib.loads(trailing) == payload, (
+        "--json must produce the same payload before or after the subcommand"
+    )
+
+    # Unknown id → exit 2 with a diagnostic, not a traceback.
+    rc, stdout, stderr = _run_cli_inprocess(["status", "ffffffff"], taskq_home)
+    assert rc == 2, f"in-process: unknown id must exit 2; got {rc}"
+    assert "ffffffff" in stderr, (
+        f"in-process: unknown-id diagnostic must name the id; got {stderr!r}"
+    )
+    assert stdout == "", (
+        f"in-process: unknown id must print no payload; got {stdout!r}"
     )
 
 
@@ -494,6 +689,63 @@ def test_fr05_04_list_status_filter(taskq_home):
             f"stdout={result_all.stdout!r}"
         )
 
+    # --- In-process variant: same handler, measurable coverage ---
+    rc, stdout, stderr = _run_cli_inprocess(
+        ["list", "--status", filter_status], taskq_home
+    )
+    assert rc == 0, (
+        f"in-process: list --status returned {rc}; expected 0; "
+        f"stderr={stderr!r}"
+    )
+    assert stdout.split() == ["aaaaaa02"], (
+        f"in-process: list --status done must yield exactly the done task; "
+        f"got {stdout!r}"
+    )
+
+    rc, stdout, _stderr = _run_cli_inprocess(["list"], taskq_home)
+    assert rc == 0, f"in-process: list returned {rc}; expected 0"
+    assert sorted(stdout.split()) == ["aaaaaa01", "aaaaaa02", "aaaaaa03"], (
+        f"in-process: unfiltered list must enumerate every task; got {stdout!r}"
+    )
+
+    # --json list → a single line holding a JSON ARRAY of full records.
+    rc, stdout, _stderr = _run_cli_inprocess(["--json", "list"], taskq_home)
+    assert rc == 0, f"in-process: --json list returned {rc}; expected 0"
+    assert "\n" not in stdout.rstrip(), (
+        f"in-process: --json list must be one line; got {stdout!r}"
+    )
+    items = json_lib.loads(stdout)
+    assert isinstance(items, list) and len(items) == 3, (
+        f"--json list must emit a 3-element array; got {items!r}"
+    )
+    assert {item["id"] for item in items} == {
+        "aaaaaa01",
+        "aaaaaa02",
+        "aaaaaa03",
+    }
+    done = [item for item in items if item["id"] == "aaaaaa02"][0]
+    assert done["status"] == "done" and done["exit_code"] == 0, (
+        f"--json list records must carry every persisted field; got {done!r}"
+    )
+
+    # A filter matching nothing is an empty success, not an error:
+    # text mode prints NOTHING (not a blank line), --json prints `[]`.
+    rc, stdout, stderr = _run_cli_inprocess(
+        ["list", "--status", "nonesuch"], taskq_home
+    )
+    assert rc == 0, f"in-process: an empty filter result must exit 0; got {rc}"
+    assert stdout == "", (
+        f"in-process: an empty list must print nothing in text mode; got "
+        f"{stdout!r}"
+    )
+    rc, stdout, _stderr = _run_cli_inprocess(
+        ["--json", "list", "--status", "nonesuch"], taskq_home
+    )
+    assert rc == 0
+    assert json_lib.loads(stdout) == [], (
+        f"in-process: an empty --json list must emit []; got {stdout!r}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Case #5: test_fr05_05_clear_data  (integration — clear)
@@ -563,6 +815,54 @@ def test_fr05_05_clear_data(taskq_home):
     result_empty = _run_cli(["clear"], taskq_home)
     assert result_empty.returncode == 0, (
         f"clear on an empty home must exit 0; got {result_empty.returncode}"
+    )
+
+    # --- In-process variant: same handler, measurable coverage ---
+    # Re-seed all three data files, then clear through cli.main directly.
+    for fname, doc in (
+        ("tasks.json", {"version": 1, "tasks": {}}),
+        (
+            "breaker.json",
+            {
+                "version": 1,
+                "state": "CLOSED",
+                "failure_count": 0,
+                "opened_at": 0.0,
+            },
+        ),
+        ("cache.json", {"version": 1, "entries": {}}),
+    ):
+        (taskq_home / fname).write_text(
+            json_lib.dumps(doc, ensure_ascii=False), encoding="utf-8"
+        )
+
+    rc, stdout, stderr = _run_cli_inprocess(["clear"], taskq_home)
+    assert rc == 0, (
+        f"in-process: clear returned {rc}; expected 0; stderr={stderr!r}"
+    )
+    assert stdout == "", (
+        f"in-process: clear must print nothing on stdout; got {stdout!r}"
+    )
+    for fname in ("tasks.json", "breaker.json", "cache.json"):
+        assert not (taskq_home / fname).exists(), (
+            f"in-process: clear must remove {fname}; still present"
+        )
+
+    # Idempotent: clearing an already-empty home is exit 0 (missing_ok).
+    rc, _stdout, stderr = _run_cli_inprocess(["clear"], taskq_home)
+    assert rc == 0, (
+        f"in-process: clear on an empty home must exit 0; got {rc}; "
+        f"stderr={stderr!r}"
+    )
+
+    # `clear` must not remove the home directory itself, nor unrelated files.
+    keeper = taskq_home / "unrelated.txt"
+    keeper.write_text("keep me", encoding="utf-8")
+    rc, _stdout, _stderr = _run_cli_inprocess(["clear"], taskq_home)
+    assert rc == 0
+    assert taskq_home.is_dir(), "clear must not remove $TASKQ_HOME itself"
+    assert keeper.exists(), (
+        "clear must only remove the three known data files, not everything"
     )
 
 
@@ -757,6 +1057,54 @@ def test_fr05_07_exit_code_error_message_map(taskq_home):
             f"diagnostic; got empty stderr"
         )
 
+    # --- In-process mirror of the exit-code map (measurable coverage) ---
+    # Scenarios 3 and 4 stay subprocess-only above: they own real process
+    # state (breaker file + a `sleep 5` child) that the executor drives.
+
+    # exit 1 — corrupt breaker.json outranks every other outcome, including
+    # an unknown id (a corrupt home is internal error, NOT validation).
+    _seed_breaker_corrupt(taskq_home)
+    for argv in (["status", "abcdef01"], ["status", "ffffffff"]):
+        rc, stdout, stderr = _run_cli_inprocess(argv, taskq_home)
+        assert rc == 1, (
+            f"in-process: corrupt breaker.json must exit 1 for {argv!r}; "
+            f"got {rc}"
+        )
+        assert stderr.startswith("status: "), (
+            f"in-process: exit 1 must carry a 'status:' diagnostic; got "
+            f"{stderr!r}"
+        )
+        assert stdout == "", (
+            f"in-process: exit 1 must emit no payload; got {stdout!r}"
+        )
+
+    # exit 2 — unknown id, once the corruption is cleared.
+    _reset_breaker(taskq_home)
+    rc, _stdout, stderr = _run_cli_inprocess(["status", "ffffffff"], taskq_home)
+    assert rc == 2, f"in-process: unknown id must exit 2; got {rc}"
+    assert stderr.strip() != "", "exit 2 must emit a stderr diagnostic"
+
+    # exit 0 — a real record, read back through the same dispatch.
+    known_id = _seed_via_cli(taskq_home, "echo hi")
+    rc, stdout, stderr = _run_cli_inprocess(["status", known_id], taskq_home)
+    assert rc == 0, (
+        f"in-process: status on a known id must exit 0; got {rc}; "
+        f"stderr={stderr!r}"
+    )
+    assert known_id in stdout
+
+    # exit 2 — validation, straight through the submit gate.
+    rc, _stdout, stderr = _run_cli_inprocess(["submit", "  "], taskq_home)
+    assert rc == 2, f"in-process: empty submit must exit 2; got {rc}"
+    assert stderr.strip() != "", "exit 2 must emit a stderr diagnostic"
+
+    # The exit-code constants are the SSOT the handlers return (SPEC §7).
+    assert (
+        cli.EXIT_SUCCESS,
+        cli.EXIT_INTERNAL_ERROR,
+        cli.EXIT_VALIDATION_ERROR,
+    ) == (0, 1, 2), "SPEC §7 exit-code constants must not drift"
+
 
 # ---------------------------------------------------------------------------
 # Case #12: test_fr05_08_python_m_taskq_entry  (integration — entry point)
@@ -801,3 +1149,38 @@ def test_fr05_08_python_m_taskq_entry(taskq_home):
             f"--help must list subcommand {sub!r}; got stdout="
             f"{result.stdout!r}"
         )
+
+    # --- In-process variant: the parser argparse builds is the same one
+    # `python -m taskq` drives, so --help is measurable here. argparse
+    # raises SystemExit(0) after printing, which the entry point forwards.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        with pytest.raises(SystemExit) as excinfo:
+            cli.main([entry_args])
+    assert excinfo.value.code == 0, (
+        f"in-process: --help must exit 0; got {excinfo.value.code}"
+    )
+    help_text = buf.getvalue()
+    for sub in ("submit", "run", "status", "list", "clear"):
+        assert sub in help_text, (
+            f"in-process: --help must list {sub!r}; got {help_text!r}"
+        )
+    assert "--json" in help_text, (
+        f"in-process: the global --json flag must be discoverable from "
+        f"--help; got {help_text!r}"
+    )
+
+    # A missing subcommand is a usage error (argparse exit 2), never a
+    # traceback — subparsers are declared required=True.
+    with contextlib.redirect_stdout(io.StringIO()):
+        saved_stderr = sys.stderr
+        try:
+            sys.stderr = io.StringIO()
+            with pytest.raises(SystemExit) as excinfo:
+                cli.main([])
+        finally:
+            sys.stderr = saved_stderr
+    assert excinfo.value.code == 2, (
+        f"in-process: a missing subcommand must exit 2; got "
+        f"{excinfo.value.code}"
+    )

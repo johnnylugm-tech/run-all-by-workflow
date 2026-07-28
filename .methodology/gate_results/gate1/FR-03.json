@@ -5,6 +5,8 @@
   "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
+  "open_critical_count": 0,
+  "open_high_count": 0,
   "breakdown": {
     "linting": {
       "score": 100.0,
@@ -14,7 +16,7 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785238973435\", \"generalDiagnostics\": [{\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cache\\\" is specified in __all__ but is not present in module\"}], \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785238991665\", \"generalDiagnostics\": [{\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cache\\\" is specified in __all__ but is not present in module\"}], \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.275}}"
     },
     "test_coverage": {
       "score": 100.0,
@@ -22,12 +24,10 @@
       "tests_passed": 7,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "collected 7 items\n03-development/tests/test_fr03.py .......                              [100%]\n============================== 7 passed in 0.06s ===============================\ncoverage_pct=100.0 (66/66 lines covered), spec_cov_pct=100% (7/7 required tests present: test_fr03_01_retry_cap, test_fr03_02_exponential_delay_injected_sleep, test_fr03_03_threshold_opens_breaker, test_fr03_04_open_rejection_no_subprocess, test_fr03_05_half_open_success_closes_resets, test_fr03_06_half_open_failure_reopens, test_fr03_07_cross_process_persistent_breaker)"
+      "tool_evidence": "============================= test session starts ==============================\nplatform darwin -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0\ncollected 7 items\n\n03-development/tests/test_fr03.py .......                                [100%]\n\n============================== 7 passed in 0.06s ===============================\ncoverage_pct=100.0 (66/66 lines), spec_cov_pct=100% (7/7 required tests)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
-  "open_critical_count": 0,
-  "open_high_count": 0,
   "composite_score": 100.0,
   "verdict": "PASS",
   "passed": true

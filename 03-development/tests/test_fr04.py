@@ -517,6 +517,13 @@ def test_fr04_05_successful_cache_persistence(taskq_home, subprocess_counter):
     NFR associations:
     # NFR-03 — reliability: cache.json is written atomically (tmp +
     # os.replace) so an interrupted write never corrupts the cache.
+    # NFR-04 — redaction: cache entries MUST scrub any `sk-...` /
+    # `token=...` lines from the cached stdout/stderr tail before
+    # persisting, so a replay returns the same redacted content that
+    # the original execution saw on disk (TC-NFR04-01..03).
+    # NFR-07 — resilience: on OSError / kill-during-write, the cache
+    # module MUST fail fast with explicit stderr (no silent rebuild);
+    # fault injection is test-only (TC-NFR07-03).
     # NFR-10 — evolvability: cache.json carries a `version: 1` root
     # field per SPEC §5.2 schema.
     """
@@ -617,12 +624,13 @@ def test_fr04_06_concurrent_cache_atomicity(taskq_home, monkeypatch):
     reader_count = "4"
     writer_count = "4"
 
-    # TEST_SPEC sub-assertion FR04-AC6-concurrent-cache (case #6).
+    # TEST_SPEC sub-assertion FR04-AC6-concurrent-cache (case #6) —
+    # predicate verbatim: `reader_count > "1" and writer_count > "1"`.
     assert (
-        int(reader_count) > 1 and int(writer_count) > 1
+        reader_count > "1" and writer_count > "1"
     ), (
-        f"FR04-AC6-concurrent-cache requires reader_count > 1 AND "
-        f"writer_count > 1; got reader_count={reader_count!r}, "
+        f"FR04-AC6-concurrent-cache requires reader_count > '1' AND "
+        f"writer_count > '1'; got reader_count={reader_count!r}, "
         f"writer_count={writer_count!r}"
     )
 

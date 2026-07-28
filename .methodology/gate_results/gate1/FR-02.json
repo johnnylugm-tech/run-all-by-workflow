@@ -1,12 +1,10 @@
 {
   "gate": 1,
-  "phase": 3,
-  "fr_id": "FR-05",
+  "phase": 4,
+  "fr_id": "FR-02",
   "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
-  "open_critical_count": 0,
-  "open_high_count": 0,
   "breakdown": {
     "linting": {
       "score": 100.0,
@@ -16,18 +14,20 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785234679938\", \"generalDiagnostics\": [], \"summary\": {\"filesAnalyzed\": 7, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.273}}"
+      "tool_evidence": "{\"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
     },
     "test_coverage": {
       "score": 100.0,
       "threshold": 80,
-      "tests_passed": 8,
+      "tests_passed": 10,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "============================== 8 passed in 1.64s ===============================\nCoverage: 100% on 03-development/src/taskq/cli.py (122/122 statements, 0 missing)"
+      "tool_evidence": "collected 10 items\n03-development/tests/test_fr02.py ..........                             [100%]\n============================== 10 passed in 5.15s ==============================\ncoverage_pct=100.0 (88/88 lines covered), spec_cov_pct=100% (0 missing)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
+  "open_critical_count": 0,
+  "open_high_count": 0,
   "composite_score": 100.0,
   "verdict": "PASS",
   "passed": true

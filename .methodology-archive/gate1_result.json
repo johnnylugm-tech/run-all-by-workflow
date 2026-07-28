@@ -1,0 +1,34 @@
+{
+  "gate": 1,
+  "phase": 8,
+  "fr_id": "FR-05",
+  "overall_score": 100.0,
+  "quality_complete": true,
+  "open_critical_count": 0,
+  "open_high_count": 0,
+  "rounds_used": 1,
+  "breakdown": {
+    "linting": {
+      "score": 100.0,
+      "threshold": 100,
+      "tool_evidence": "All checks passed!"
+    },
+    "type_safety": {
+      "score": 100.0,
+      "threshold": 100,
+      "tool_evidence": "{\"version\": \"1.1.409\", \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.316}}"
+    },
+    "test_coverage": {
+      "score": 100.0,
+      "threshold": 80,
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "tests_skipped": 0,
+      "tool_evidence": "============================= test session starts ==============================\ncollected 8 items\n\n03-development/tests/test_fr05.py ........                               [100%]\n\n============================== 8 passed in 1.68s ===============================\n{\"files\": {\"03-development/src/taskq/cli.py\": {\"summary\": {\"percent_covered\": 100.0, \"missing_lines\": 0}}}, \"totals\": {\"percent_covered\": 100.0, \"missing_lines\": 0}}"
+    }
+  },
+  "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
+  "composite_score": 100.0,
+  "verdict": "PASS",
+  "passed": true
+}

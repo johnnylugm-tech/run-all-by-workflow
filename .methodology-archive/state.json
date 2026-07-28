@@ -19,6 +19,6 @@
   },
   "test_inventory_checksum": "880eb1471fcdff1bbcafa8bde48db37eec0464712d304b5b99c5fe9acb05aabc",
   "phase_truth_passed": true,
-  "last_milestone_command": "push-milestone --type p8",
-  "last_milestone_at": "2026-07-28T16:01:55.233316+00:00"
+  "last_milestone_command": "advance-phase --completed-phase 7",
+  "last_milestone_at": "2026-07-28T15:44:54.751603+00:00"
 }

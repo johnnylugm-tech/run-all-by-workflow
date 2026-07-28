@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-07-28T12:10:00+00:00",
+  "git_sha": "e8805d044357b5a5c0ec04fa1f39339535e3fa91",
+  "targets_manifest": ".methodology/bug_hunt_targets.json",
+  "lenses": [
+    "correctness",
+    "concurrency",
+    "resilience",
+    "general"
+  ],
+  "raw_count": 3,
+  "confirmed_count": 3,
+  "refuted_count": 0,
+  "findings": [
+    {
+      "id": "taskq.cli#1",
+      "module": "taskq.cli",
+      "lens": "concurrency",
+      "severity": "high",
+      "title": "_cmd_submit TOCTOU on --name uniqueness (T-07 spoofing mitigation gap)",
+      "description": "cli._cmd_submit checks `_name_is_taken` and then calls `store._atomic_write_json` without holding any cross-process lock. Two concurrent `python -m taskq submit --name X` invocations can each load an empty store, each pass the name check, and each persist their own record; the last write wins and silently loses the other. The check is single-process safe but multi-process unsafe.",
+      "file": "03-development/src/taskq/cli.py",
+      "line_start": 174,
+      "line_end": 196,
+      "code_snippet": "    home = store.home()\n    home.mkdir(parents=True, exist_ok=True)\n    store_document = store.load_store(home)\n\n    if args.name is not None and _name_is_taken(store_document, args.name):\n        return _invalid(...)",
+      "reasoning": "file:line 03-development/src/taskq/cli.py:174-196 \u2014 read-modify-write of tasks.json is NOT wrapped in `STORE_LOCK` and `_atomic_write_json` is not cross-process serialised. STORE_LOCK is `threading.Lock` (store.py:29-30) and only protects within one process. Pre-fix probe: 10 concurrent submits with the same --name produced 2 accepted + 8 rejected (acceptable: 1). Post-fix probe: exactly 1 accepted.",
+      "suggested_fix": "Wrap the load/check/write block in `with store._file_lock(home / store.TASKS_FILENAME):` (an `fcntl.flock`-based context manager in store.py).",
+      "confidence": "high",
+      "confirmed": true,
+      "verify_evidence": "test_bh_f1_concurrent_submit_unique_names RED-pre: accepts=2/10 (expected 1). GREEN-post fix: 1/10. Probe: cli.main(['submit','--name','dupname','echo job']) launched 10\u00d7 via ThreadPoolExecutor of subprocess.run \u2014 2 succeeded before the lock, 8 rejected.",
+      "resolution": {
+        "status": "resolved",
+        "fix_commit": "e8805d044357b5a5c0ec04fa1f39339535e3fa91",
+        "repro_test": "03-development/tests/integration/test_bug_hunt_repros.py"
+      }
+    },
+    {
+      "id": "taskq.store#1",
+      "module": "taskq.store",
+      "lens": "concurrency",
+      "severity": "high",
+      "title": "store._atomic_write_json cross-process race (T-05 corruption / data loss)",
+      "description": "_atomic_write_json picks a tmp file named `.{name}.{8-hex}.tmp` then in `finally:` unconditionally calls `tmp.unlink()`. Two concurrent CLI processes can both pick the same 8-hex suffix; one's `finally.unlink` removes the other's still-pending tmp file \u2192 `os.replace` raises FileNotFoundError and tasks.json may be destroyed entirely (deleted or left empty). Pre-fix probe of 50 concurrent submits via multiprocessing.Pool ended with tasks.json GONE and workers reporting FileNotFoundError on tmp \u2192 tasks.json rename.",
+      "file": "03-development/src/taskq/store.py",
+      "line_start": 51,
+      "line_end": 64,
+      "code_snippet": "def _atomic_write_json(path: Path, data: dict) -> None:\n    path.parent.mkdir(parents=True, exist_ok=True)\n    tmp = path.parent / f\".{path.name}.{uuid.uuid4().hex[:8]}.tmp\"\n    try:\n        tmp.write_text(...)\n        os.replace(tmp, path)\n    finally:\n        if tmp.exists():\n            tmp.unlink()",
+      "reasoning": "file:line 03-development/src/taskq/store.py:51-64 \u2014 the tmp suffix is only 8 hex (32 bits) and the `finally: tmp.unlink()` runs unconditionally. STORE_LOCK is process-local. Pre-fix probe (50 concurrent submits via multiprocessing.Pool) produced 5/20 commands lost (probe1) and tasks.json destroyed entirely (probe2 with traceback FileNotFoundError '/tmp/tq_corrupt_test/.tasks.json.a0ff0ca5.tmp' -> '/tmp/tq_corrupt_test/tasks.json').",
+      "suggested_fix": "Replace 8-hex tmp suffix with 16-hex (uuid4 hex) AND acquire `fcntl.flock(LOCK_EX)` on `.tasks.json.lock` for the duration of the write. Callers that do a read-modify-write MUST hold the same flock (cli._cmd_submit, store.update_task).",
+      "confidence": "high",
+      "confirmed": true,
+      "verify_evidence": "test_bh_f2_concurrent_submits_no_data_loss RED-pre: 5/20 commands lost. GREEN-post fix: 0/20. Probe multiprocessing.Pool(50): pre-fix -> FileNotFoundError on os.replace + tasks.json missing on disk; post-fix -> all 50 accepted, all 50 commands persisted.",
+      "resolution": {
+        "status": "resolved",
+        "fix_commit": "e8805d044357b5a5c0ec04fa1f39339535e3fa91",
+        "repro_test": "03-development/tests/integration/test_bug_hunt_repros.py"
+      }
+    },
+    {
+      "id": "taskq.executor#1",
+      "module": "taskq.executor",
+      "lens": "correctness",
+      "severity": "high",
+      "title": "stdout_tail / stderr_tail persisted verbatim (T-04 information disclosure)",
+      "description": "_execute returns `_tail(result.stdout)` and `_tail(result.stderr)` verbatim; cache.put then persists the same dict to cache.json. A user who submits a command whose output contains an API key (`sk-*`), bearer token, or `token=...` value has that secret durably written to disk under $TASKQ_HOME/tasks.json AND $TASKQ_HOME/cache.json \u2014 recoverable by any process that reads those files. No redaction logic exists anywhere in src/taskq/.",
+      "file": "03-development/src/taskq/executor.py",
+      "line_start": 155,
+      "line_end": 160,
+      "code_snippet": "return {\n    \"status\": \"done\" if result.returncode == 0 else \"failed\",\n    \"exit_code\": result.returncode,\n    \"stdout_tail\": _tail(result.stdout),\n    \"stderr_tail\": _tail(result.stderr),\n}",
+      "reasoning": "file:line 03-development/src/taskq/executor.py:155-160 \u2014 `_tail` does no redaction; the only processing is length truncation. Pre-fix probe: submitted `python3 -c \"print('sk-ZXAMPLE0123456789ABCDEF0123456789')\"`, ran, and tasks.json.stdout_tail = 'sk-ZXAMPLE0123456789ABCDEF0123456789\\n' verbatim; cache.json same. Post-fix probe: stdout_tail = '[REDACTED]\\n'.",
+      "suggested_fix": "Add `_redact()` helper that strips sk-*, token=*, Bearer *, password=* patterns via regex, applied before persistence. Apply to both TimeoutExpired and success-path returns.",
+      "confidence": "high",
+      "confirmed": true,
+      "verify_evidence": "test_bh_f3_subprocess_output_redacted RED-pre: re.compile(r'sk-[A-Za-z0-9]{16,}').search(persisted) matched. GREEN-post fix: no secret-shaped substring present in tasks.json or cache.json. Probe: persisted stdout_tail='sk-ZXAMPLE0123456789ABCDEF0123456789\\n' (pre) \u2192 '[REDACTED]\\n' (post).",
+      "resolution": {
+        "status": "resolved",
+        "fix_commit": "e8805d044357b5a5c0ec04fa1f39339535e3fa91",
+        "repro_test": "03-development/tests/integration/test_bug_hunt_repros.py"
+      }
+    }
+  ],
+  "threat_model_verification": [
+    {
+      "threat_id": "T-01",
+      "category": "tampering",
+      "attack_vector": "shell-metacharacter injection via `submit`",
+      "attempted_exploit": "cli.main(['submit', ...]) with cmds containing `(`, `{`, `*`, `~`, `\\n`, `%` (none in BLACKLIST_CHARS) \u2014 all accepted by _validate_command but executor parses with shlex.split + shell=False, so they reach the OS as literal argv and never invoke shell semantics. ; | & $ > < ` are still rejected at the validation layer as defense-in-depth.",
+      "mitigation_effective": true,
+      "mitigation_evidence": "executor.py:140-146 uses subprocess.run(shlex.split(command), shell=False). No shlex.quote / shell=True fallback path exists. Verified by grep -rn 'shell=True' returning zero hits."
+    },
+    {
+      "threat_id": "T-02",
+      "category": "elevation_of_privilege",
+      "attack_vector": "executor falls back to shell=True during a refactor",
+      "attempted_exploit": "grep -rn 'shell=True' across src/taskq/ \u2014 zero hits; the only `shell=` reference is `shell=False` on executor.py:142. No fallback path exists.",
+      "mitigation_effective": true,
+      "mitigation_evidence": "executor.py:140-146 \u2014 explicit shell=False; the BLACKLIST + shlex.split combination has no path that toggles shell=True."
+    },
+    {
+      "threat_id": "T-03",
+      "category": "denial_of_service",
+      "attack_vector": "subprocess hangs forever and consumes worker slots",
+      "attempted_exploit": "Submitted `sleep 30` with TASKQ_TASK_TIMEOUT=2 \u2192 subprocess.run(..., timeout=2) raised TimeoutExpired; executor._execute caught it and returned status='timeout'/exit_code=4. Wall-clock elapsed = 4.22s (1 retry attempt per breaker.retry_limit()=2 with backoff). Single-task path returns EXIT_TIMEOUT (4) without leaking the thread. run_all path uses ThreadPoolExecutor with `with` block + fut.result() \u2014 every future completes, pool is closed at exit.",
+      "mitigation_effective": true,
+      "mitigation_evidence": "executor.py:147-153 TimeoutExpired handler + run_all ThreadPoolExecutor context manager (line 272-275). Probe: rc=4, status='timeout', no thread leak."
+    },
+    {
+      "threat_id": "T-04",
+      "category": "information_disclosure",
+      "attack_vector": "stdout_tail / stderr_tail persisted to disk with secrets",
+      "attempted_exploit": "Submitted `python3 -c \"print('sk-ZXAMPLE0123456789ABCDEF0123456789')\"` \u2014 secret landed verbatim in tasks.json.stdout_tail AND cache.json entry. Confirmed.",
+      "mitigation_effective": false,
+      "mitigation_evidence": "Pre-fix: no redaction layer. Post-fix (commit e8805d0): _redact() applied to both stdout/stderr paths; sk-*, token=*, Bearer *, password=* patterns replaced with [REDACTED]."
+    },
+    {
+      "threat_id": "T-05",
+      "category": "tampering",
+      "attack_vector": "concurrent python -m taskq processes corrupt tasks.json on interleaved write",
+      "attempted_exploit": "50 concurrent submits via multiprocessing.Pool \u2014 pre-fix tasks.json ended deleted entirely (FileNotFoundError on tmp\u2192tasks.json rename). 20-thread probe: 5/20 commands silently lost.",
+      "mitigation_effective": false,
+      "mitigation_evidence": "Pre-fix: store._atomic_write_json had only an in-process threading.Lock (STORE_LOCK) and an 8-hex tmp suffix (uuid4 collision window). Post-fix: 16-hex suffix + fcntl.flock(LOCK_EX) on .tasks.json.lock wrapping the entire read-modify-write. Verified by re-running the 20-thread probe \u2014 0/20 commands lost, tasks.json valid JSON with all 20 commands."
+    },
+    {
+      "threat_id": "T-06",
+      "category": "repudiation",
+      "attack_vector": "schema migration overwrites v0 tasks.json without recoverable backup",
+      "attempted_exploit": "No schema-migration code path exists in the current codebase; load_store returns the v1 skeleton only when tasks.json is missing entirely. A v0 file (no `version` key) is loaded as-is \u2014 no migration, no backup. The declared threat is hypothetical because there is no v1\u2192v2 upgrade path yet.",
+      "mitigation_effective": true,
+      "mitigation_evidence": "Threat is currently hypothetical \u2014 there is no upgrade path to exercise. The mitigation would be: when adding a v2 loader, copy tasks.json \u2192 tasks.json.v1.bak before any write. Logged as MEDIUM severity, not blocking Gate 3 (per protocol: medium/low do not block)."
+    },
+    {
+      "threat_id": "T-07",
+      "category": "spoofing",
+      "attack_vector": "user supplies --name duplicating an existing pending/running task to silently shadow state",
+      "attempted_exploit": "Single-process: _name_is_taken correctly rejects duplicate pending/running names (verified by 1 accept + 9 reject across 10 sequential submits). Multi-process: 10 concurrent subprocess submits with the same --name produced 2 accept + 8 reject pre-fix (the 2 racing processes each saw an empty store and each wrote a task record).",
+      "mitigation_effective": false,
+      "mitigation_evidence": "Pre-fix: cli._cmd_submit used only threading.Lock (process-local). Post-fix (commit e8805d0): name-uniqueness check + write wrapped in `with store._file_lock(...)` so concurrent `python -m taskq` processes serialise. Re-probed: exactly 1 accept + 9 reject across 10 concurrent subprocess submits."
+    }
+  ]
+}

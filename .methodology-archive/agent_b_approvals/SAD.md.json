@@ -1,0 +1,32 @@
+{
+  "fr": "SAD.md",
+  "review_status": "APPROVE",
+  "reason": "SAD.md satisfies the binding SAB/SEC parser contracts: SAB block has the SAB:START marker with phase:2 as bare int, all 10 NFR types are drawn from the 8 legal values, every FR has a primary module assignment, no circular dependencies (verified via §3.4 edge map), 9 files in SPEC §6 (incl __init__) cap is met, and the SEC block declares applicability:full with 7 STRIDE threats each pointing to a single verified_by test name. FR→module traceability is complete (FR-01→cli, FR-02→executor, FR-03→breaker, FR-04→cache, FR-05→cli) and the data-flow diagram (§3.2) is consistent with §2.2 module responsibilities. Gaps: §4 NFR Category column uses non-legal values (resilience/concurrency/evolvability) which mismatch §5 SAB's remapped legal types, and §1/§2 claim '9 modules' while the SAB lists 8 (o",
+  "citations": [
+    "02-architecture/SAD.md:4",
+    "02-architecture/SAD.md:54",
+    "02-architecture/SAD.md:62",
+    "02-architecture/SAD.md:326",
+    "02-architecture/SAD.md:331",
+    "02-architecture/SAD.md:381",
+    "02-architecture/SAD.md:385",
+    "02-architecture/SAD.md:389",
+    "02-architecture/SAD.md:393",
+    "02-architecture/SAD.md:397",
+    "02-architecture/SAD.md:401",
+    "02-architecture/SAD.md:405",
+    "02-architecture/SAD.md:409",
+    "02-architecture/SAD.md:413",
+    "02-architecture/SAD.md:417",
+    "02-architecture/SAD.md:469",
+    "02-architecture/SAD.md:493",
+    "02-architecture/SAD.md:501",
+    "02-architecture/SAD.md:509",
+    "02-architecture/SAD.md:517"
+  ],
+  "docs_embedded": [
+    "SRS.md",
+    "SAD.md"
+  ],
+  "confidence": 0.9
+}

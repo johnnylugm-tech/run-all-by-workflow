@@ -1,12 +1,10 @@
 {
   "gate": 1,
-  "phase": 4,
+  "phase": 5,
   "fr_id": "FR-05",
   "overall_score": 100.0,
   "quality_complete": true,
   "rounds_used": 1,
-  "open_critical_count": 0,
-  "open_high_count": 0,
   "breakdown": {
     "linting": {
       "score": 100.0,
@@ -16,7 +14,7 @@
     "type_safety": {
       "score": 100.0,
       "threshold": 100,
-      "tool_evidence": "{\"version\": \"1.1.409\", \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.272}}"
+      "tool_evidence": "{\"version\": \"1.1.409\", \"time\": \"1785244292117\", \"generalDiagnostics\": [{\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cache\\\" is specified in __all__ but is not present in module\", \"rule\": \"reportUnsupportedDunderAll\"}, {\"file\": \"03-development/src/taskq/__init__.py\", \"severity\": \"warning\", \"message\": \"\\\"cli\\\" is specified in __all__ but is not present in module\", \"rule\": \"reportUnsupportedDunderAll\"}], \"summary\": {\"filesAnalyzed\": 9, \"errorCount\": 0, \"warningCount\": 4, \"informationCount\": 0, \"timeInSec\": 0.301}}"
     },
     "test_coverage": {
       "score": 100.0,
@@ -24,10 +22,13 @@
       "tests_passed": 8,
       "tests_failed": 0,
       "tests_skipped": 0,
-      "tool_evidence": "collected 8 items\n\n03-development/tests/test_fr05.py ........                               [100%]\n\n============================== 8 passed in 1.66s ===============================\ncoverage_pct=100.0 (122 stmts, 03-development/src/taskq/cli.py), spec_cov_pct=100% (8/8 unique required tests)"
+      "tool_evidence": "collected 8 items\n03-development/tests/test_fr05.py ........                               [100%]\n\n============================== 8 passed in 1.68s ===============================\nCoverage: 100% on cli.py (123/123 statements)"
     }
   },
   "enforcer_sha": "c7a9d9b7ac6ace060345d32516d3112a78f9699f",
+  "open_critical_count": 0,
+  "open_high_count": 0,
+  "failing_dimensions": [],
   "composite_score": 100.0,
   "verdict": "PASS",
   "passed": true

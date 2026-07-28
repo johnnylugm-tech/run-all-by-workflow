@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-07-28T11:53:57.457631+00:00",
+  "git_sha": "352bef759871b93816aa7047257e8273de283c27",
+  "language": "python",
+  "high_risk": [
+    {
+      "path": "03-development/src/taskq/cli.py",
+      "name": "cli",
+      "reasons": [
+        "threat_model:T-01 tampering",
+        "threat_model:T-07 spoofing"
+      ]
+    },
+    {
+      "path": "03-development/src/taskq/executor.py",
+      "name": "executor",
+      "reasons": [
+        "threat_model:T-02 elevation_of_privilege",
+        "threat_model:T-03 denial_of_service",
+        "threat_model:T-04 information_disclosure"
+      ]
+    },
+    {
+      "path": "03-development/src/taskq/store.py",
+      "name": "store",
+      "reasons": [
+        "threat_model:T-05 tampering",
+        "threat_model:T-06 repudiation"
+      ]
+    },
+    {
+      "path": "taskq.executor",
+      "name": "taskq",
+      "reasons": [
+        "declared"
+      ]
+    },
+    {
+      "path": "taskq.store",
+      "name": "taskq",
+      "reasons": [
+        "declared"
+      ]
+    }
+  ],
+  "standard": [
+    {
+      "path": "03-development/src/taskq/__init__.py",
+      "name": "__init__"
+    },
+    {
+      "path": "03-development/src/taskq/__main__.py",
+      "name": "__main__"
+    },
+    {
+      "path": "03-development/src/taskq/breaker.py",
+      "name": "breaker"
+    },
+    {
+      "path": "03-development/src/taskq/cache.py",
+      "name": "cache"
+    },
+    {
+      "path": "03-development/src/taskq/config.py",
+      "name": "config"
+    },
+    {
+      "path": "03-development/src/taskq/models.py",
+      "name": "models"
+    }
+  ],
+  "mutation_survivors": [],
+  "integration_coverage": {
+    "gate": 2,
+    "score": 63.0
+  },
+  "threat_model": [
+    {
+      "threat_id": "T-01",
+      "category": "tampering",
+      "description": "user submits a command string containing shell-metacharacter injection",
+      "owner_module": "taskq.cli",
+      "boundary": "TB-01"
+    },
+    {
+      "threat_id": "T-02",
+      "category": "elevation_of_privilege",
+      "description": "executor falls back to shell=True during a refactor",
+      "owner_module": "taskq.executor",
+      "boundary": "TB-02"
+    },
+    {
+      "threat_id": "T-03",
+      "category": "denial_of_service",
+      "description": "subprocess hangs forever and consumes worker slots / threads",
+      "owner_module": "taskq.executor",
+      "boundary": "TB-02"
+    },
+    {
+      "threat_id": "T-04",
+      "category": "information_disclosure",
+      "description": "stdout_tail/stderr_tail accidentally persisted to disk carrying secrets like sk-* API keys or token=... values",
+      "owner_module": "taskq.executor",
+      "boundary": "TB-03"
+    },
+    {
+      "threat_id": "T-05",
+      "category": "tampering",
+      "description": "two concurrent python -m taskq processes corrupt tasks.json on interleaved write",
+      "owner_module": "taskq.store",
+      "boundary": "TB-03"
+    },
+    {
+      "threat_id": "T-06",
+      "category": "repudiation",
+      "description": "schema migration overwrites a v0 tasks.json without leaving a recoverable backup",
+      "owner_module": "taskq.store",
+      "boundary": "TB-03"
+    },
+    {
+      "threat_id": "T-07",
+      "category": "spoofing",
+      "description": "user supplies a --name duplicating an existing pending/running task to silently shadow state",
+      "owner_module": "taskq.cli",
+      "boundary": "TB-01"
+    }
+  ],
+  "sources": {
+    "declared": 2,
+    "crg_hubs": 0,
+    "mutation_survivors": 0,
+    "integration_coverage": true,
+    "threat_model": 7
+  }
+}

@@ -30,10 +30,11 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from taskq import store
+from taskq import breaker, store
 
 # --- Public constants ---------------------------------------------------
 
@@ -41,6 +42,10 @@ TAIL_BOUND = 2000
 EXIT_TIMEOUT = 4
 DEFAULT_TASK_TIMEOUT_SECONDS = 60
 DEFAULT_MAX_WORKERS = 4
+
+# Injection point for the retry backoff (FR-03): tests replace this with
+# a recorder so the exponential formula is verified without real waits.
+_sleep = time.sleep
 
 
 # --- Helpers ------------------------------------------------------------
@@ -93,11 +98,34 @@ def _execute(command: str, timeout: int) -> dict:
 
 # --- Public API ---------------------------------------------------------
 
+def _attempt_with_retry(command: str, timeout: int) -> dict:
+    """[FR-03] Run ``command``, retrying a ``failed``/``timeout`` outcome.
+
+    At most ``TASKQ_RETRY_LIMIT`` attempts are made; before retry ``n`` the
+    executor waits ``taskq.breaker.backoff_delay(n)`` seconds through the
+    injectable module-level ``_sleep``. The record of the LAST attempt is
+    returned.
+    """
+    attempts = max(1, breaker.retry_limit())
+    outcome = _execute(command, timeout)
+    for retry_index in range(1, attempts):
+        if outcome["status"] == "done":
+            break
+        _sleep(breaker.backoff_delay(retry_index))
+        outcome = _execute(command, timeout)
+    return outcome
+
+
 def run(task_id: str) -> int:
-    """[FR-02] Execute a single pending task by id.
+    """[FR-02] Execute a single pending task by id, with [FR-03] retry.
+
+    The circuit breaker is consulted before any subprocess is spawned; a
+    failing attempt is retried per ``taskq.breaker``'s policy and the final
+    outcome is reported to the breaker.
 
     Returns:
         ``0`` if the task completed (exit 0 → ``done``, non-zero → ``failed``).
+        ``3`` if the breaker is OPEN — no subprocess is spawned (FR-03).
         ``4`` if the task exceeded ``TASKQ_TASK_TIMEOUT`` (SPEC §7).
     """
     home = store.home()
@@ -105,17 +133,27 @@ def run(task_id: str) -> int:
     if record is None:
         return 0
 
+    circuit = breaker.CircuitBreaker(home)
+    if not circuit.allow():
+        print("breaker open", file=sys.stderr)
+        return breaker.EXIT_BREAKER_OPEN
+
     timeout = int(os.environ.get("TASKQ_TASK_TIMEOUT", str(DEFAULT_TASK_TIMEOUT_SECONDS)))
 
     # pending → running
     store.update_task(home, task_id, status="running")
 
     start = time.monotonic()
-    outcome = _execute(record["command"], timeout)
+    outcome = _attempt_with_retry(record["command"], timeout)
     outcome["duration_ms"] = int((time.monotonic() - start) * 1000)
     outcome["finished_at"] = store.now_iso()
 
     store.update_task(home, task_id, **outcome)
+
+    if outcome["status"] == "done":
+        circuit.record_success()
+    else:
+        circuit.record_failure()
 
     return EXIT_TIMEOUT if outcome["status"] == "timeout" else 0
 

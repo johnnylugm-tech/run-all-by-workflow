@@ -323,19 +323,19 @@ verification surface. Each row preserves the authoritative `test_name` from
 `TEST_INVENTORY.yaml`; the layer column is a hard contract on the downstream
 phase, not a recommendation.
 
-| # | NFR | Test Function | Layer | Title |
+| # | Test Function | NFR | Layer | Title |
 |---|---|---|---|---|
-| 1 | NFR-02 | `test_nfr02_01_source_scan_no_shell_true` | unit | Source scan finds zero `shell=True` in `src/taskq` |
-| 2 | NFR-02 | `test_nfr02_02_blacklist_character_coverage` | unit | Blacklist character coverage for every FR-01 character |
-| 3 | NFR-03 | `test_nfr03_01_atomic_write_inspection` | unit | Atomic write helper inspection for all three files |
-| 4 | NFR-04 | `test_nfr04_01_matching_line_stdout_redaction` | unit | `stdout_tail` secret-line redaction |
-| 5 | NFR-04 | `test_nfr04_02_matching_line_stderr_redaction` | unit | `stderr_tail` secret-line redaction |
-| 6 | NFR-04 | `test_nfr04_03_non_matching_line_preservation` | unit | Non-matching-line preservation (no false positives) |
-| 7 | NFR-05 | `test_nfr05_01_public_docstring_fr_reference` | unit | Public callable docstring `[FR-XX]` coverage |
-| 8 | NFR-06 | `test_nfr06_01_all_default_values` | unit | All 8 `TASKQ_*` canonical defaults |
-| 9 | NFR-06 | `test_nfr06_02_all_environment_overrides` | unit | All 8 `TASKQ_*` env-override parametrization |
-| 10 | NFR-06 | `test_nfr06_03_env_example_eight_variables` | unit | `.env.example` declares and annotates all 8 vars |
-| 11 | NFR-07 | `test_nfr07_05_normal_path_disables_injection` | unit | Normal execution path does not enable fault injection |
+| 1 | `test_nfr02_01_source_scan_no_shell_true` | NFR-02 | unit | Source scan finds zero `shell=True` in `src/taskq` |
+| 2 | `test_nfr02_02_blacklist_character_coverage` | NFR-02 | unit | Blacklist character coverage for every FR-01 character |
+| 3 | `test_nfr03_01_atomic_write_inspection` | NFR-03 | unit | Atomic write helper inspection for all three files |
+| 4 | `test_nfr04_01_matching_line_stdout_redaction` | NFR-04 | unit | `stdout_tail` secret-line redaction |
+| 5 | `test_nfr04_02_matching_line_stderr_redaction` | NFR-04 | unit | `stderr_tail` secret-line redaction |
+| 6 | `test_nfr04_03_non_matching_line_preservation` | NFR-04 | unit | Non-matching-line preservation (no false positives) |
+| 7 | `test_nfr05_01_public_docstring_fr_reference` | NFR-05 | unit | Public callable docstring `[FR-XX]` coverage |
+| 8 | `test_nfr06_01_all_default_values` | NFR-06 | unit | All 8 `TASKQ_*` canonical defaults |
+| 9 | `test_nfr06_02_all_environment_overrides` | NFR-06 | unit | All 8 `TASKQ_*` env-override parametrization |
+| 10 | `test_nfr06_03_env_example_eight_variables` | NFR-06 | unit | `.env.example` declares and annotates all 8 vars |
+| 11 | `test_nfr07_05_normal_path_disables_injection` | NFR-07 | unit | Normal execution path does not enable fault injection |
 
 ---
 

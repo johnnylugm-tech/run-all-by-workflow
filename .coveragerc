@@ -1,0 +1,33 @@
+# Coverage configuration for gate2 integration tests.
+#
+# Subprocess support: gate2 integration tests spawn the taskq CLI as
+# separate Python interpreters. Each of those needs to record coverage
+# data via the COVERAGE_PROCESS_START hook. The `[run]` section turns
+# on parallel mode + subprocess tracking; the parent pytest-cov run
+# then combines all `.coverage.*` files under the data file path.
+[run]
+branch = false
+source =
+    03-development/src
+data_file = .coverage
+parallel = true
+concurrency = multiprocessing,thread
+sigterm = true
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    \\.\\.\\.
+show_missing = true
+skip_empty = true
+
+[json]
+output = .sessi-work/round_1/tools/integration_coverage.json
+
+[paths]
+source =
+    03-development/src
+    */03-development/src

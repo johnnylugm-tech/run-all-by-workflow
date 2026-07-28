@@ -1,9 +1,9 @@
 # Phase 3 STAGE_PASS
 
-Generated: 2026-07-28 10:31 UTC
+Generated: 2026-07-28 10:46 UTC
 
 ## Gate Score
-Gate 1 Composite Score: **98.32**
+Gate 2 Composite Score: **91.96**
 
 ## Quality Status
 quality_complete: **True**

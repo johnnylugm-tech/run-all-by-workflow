@@ -57,7 +57,8 @@
       "modules": [
         {
           "name": "taskq.config"
-        }
+        },
+        "taskq"
       ],
       "allowed_dependencies": []
     }

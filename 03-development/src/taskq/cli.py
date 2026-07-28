@@ -40,39 +40,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Sequence
 
-from taskq import executor  # noqa: F401  (used by _cmd_run dispatch)
+from taskq import executor, store  # noqa: F401  (executor used by _cmd_run dispatch)
 
 MAX_COMMAND_LENGTH = 1000
 BLACKLIST_CHARS = set(";|$>&<`")
 ACTIVE_STATUSES = ("pending", "running")
 STATUS_PENDING = "pending"
-TASKS_FILENAME = "tasks.json"
 EXIT_VALIDATION_ERROR = 2
-
-
-def _taskq_home() -> Path:
-    """[FR-01] Resolve the TASKQ_HOME directory from environment.
-
-    Citations:
-      03-development/tests/test_fr01.py:47 — `taskq_home` fixture sets
-        the TASKQ_HOME env var; cli reads the same env var here.
-    """
-    raw = os.environ.get("TASKQ_HOME")
-    if raw:
-        return Path(raw)
-    return Path.home() / ".taskq"
-
-
-def _now_iso() -> str:
-    """[FR-01] Current UTC timestamp in ISO-8601."""
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _new_task_id() -> str:
@@ -83,39 +61,6 @@ def _new_task_id() -> str:
         ``re.fullmatch(r"[0-9a-f]{8}", printed)``.
     """
     return uuid.uuid4().hex[:8]
-
-
-def _atomic_write_json(path: Path, data: dict) -> None:
-    """[FR-01] Atomically persist `data` as JSON at `path`.
-
-    Citations:
-      03-development/tests/test_fr01.py:295 — NFR-03 reliability:
-        tmp + os.replace must leave tasks.json valid and clean.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.parent / f".{path.name}.{uuid.uuid4().hex[:8]}.tmp"
-    try:
-        tmp.write_text(
-            json.dumps(data, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink()
-
-
-def _load_store(home: Path) -> dict:
-    """[FR-01] Read tasks.json from `home`, returning the v1 skeleton if absent.
-
-    Citations:
-      03-development/tests/test_fr01.py:248 — "tasks.json must contain a
-        'tasks' key" — root dict shape is {version, tasks}.
-    """
-    tasks_file = home / TASKS_FILENAME
-    if not tasks_file.exists():
-        return {"version": 1, "tasks": {}}
-    return json.loads(tasks_file.read_text(encoding="utf-8"))
 
 
 def _validate_command(command: str) -> str | None:
@@ -142,9 +87,9 @@ def _validate_command(command: str) -> str | None:
     return None
 
 
-def _name_is_taken(store: dict, name: str) -> bool:
+def _name_is_taken(store_data: dict, name: str) -> bool:
     """[FR-01] Return True if `name` is already used by a pending/running task."""
-    for record in store.get("tasks", {}).values():
+    for record in store_data.get("tasks", {}).values():
         if record.get("status") in ACTIVE_STATUSES:
             if record.get("name") == name:
                 return True
@@ -165,11 +110,11 @@ def _cmd_submit(args: argparse.Namespace) -> int:
     if err is not None:
         return _submit_error(err)
 
-    home = _taskq_home()
+    home = store.home()
     home.mkdir(parents=True, exist_ok=True)
-    store = _load_store(home)
+    store_data = store.load_store(home)
 
-    if args.name is not None and _name_is_taken(store, args.name):
+    if args.name is not None and _name_is_taken(store_data, args.name):
         return _submit_error(
             f"name {args.name!r} is already used by a pending/running task"
         )
@@ -178,13 +123,16 @@ def _cmd_submit(args: argparse.Namespace) -> int:
     record = {
         "status": STATUS_PENDING,
         "command": args.command,
-        "created_at": _now_iso(),
+        "created_at": store.now_iso(),
     }
     if args.name is not None:
         record["name"] = args.name
-    store["tasks"][task_id] = record
+    store_data["tasks"][task_id] = record
 
-    _atomic_write_json(home / TASKS_FILENAME, store)
+    # Persist the entire store (full rewrite) — submit is the entry point
+    # so the task id is guaranteed new and there is no in-place update to
+    # merge against.
+    store._atomic_write_json(home / store.TASKS_FILENAME, store_data)
 
     if args.json:
         print(json.dumps({"id": task_id, "status": STATUS_PENDING}))

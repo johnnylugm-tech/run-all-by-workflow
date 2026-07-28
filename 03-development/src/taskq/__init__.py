@@ -7,5 +7,5 @@ Citations:
     exercises both the CLI surface and the executor entry points.
 """
 
-__all__ = ["cli", "executor"]
+__all__ = ["cli", "executor", "store"]
 __version__ = "0.1.0"

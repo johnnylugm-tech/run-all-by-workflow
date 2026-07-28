@@ -1,7 +1,7 @@
 {
   "schema": "harness/traceability/attestation/v1",
-  "git_sha": "3acdee3e3c543e044054271fc3001f434652ba90",
-  "content_sha256": "2be8b841d248f40985c23ac11d133fea88473c7f3041b77004a89392b3154c60",
+  "git_sha": "10f349f77c58b4cd82dcb6845ddd2265ce7a3fc6",
+  "content_sha256": "cd049187ee7fa4668bbdf2164817ac844422af0a050b6061a2c9ed173dc8df49",
   "tool": "scripts/build_trace_attestation.py",
   "overlay_used": null,
   "overlay_errors": [],
@@ -9,34 +9,86 @@
     "schema_version": "harness/traceability/overlay/v1",
     "project_id": "run-all-by-workflow",
     "completeness": {
-      "total_requirements": 1,
+      "total_requirements": 5,
       "srs_coverage": "100.0%",
       "code_coverage": "0.0%",
       "test_coverage": "0.0%",
       "verification_rate": "0.0%",
-      "total_links": 1,
+      "total_links": 5,
       "missing_mappings": {
         "fr_without_srs": [],
         "fr_without_code": [
-          "FR-01"
+          "FR-01",
+          "FR-02",
+          "FR-03",
+          "FR-04",
+          "FR-05"
         ],
         "fr_without_test": [
-          "FR-01"
+          "FR-01",
+          "FR-02",
+          "FR-03",
+          "FR-04",
+          "FR-05"
         ]
       }
     },
     "missing": {
       "fr_without_srs": [],
       "fr_without_code": [
-        "FR-01"
+        "FR-01",
+        "FR-02",
+        "FR-03",
+        "FR-04",
+        "FR-05"
       ],
       "fr_without_test": [
-        "FR-01"
+        "FR-01",
+        "FR-02",
+        "FR-03",
+        "FR-04",
+        "FR-05"
       ]
     },
     "requirements": {
       "FR-01": {
         "fr_id": "FR-01",
+        "status": "pending",
+        "srs_section": "SAD.md",
+        "code_files": [],
+        "test_files": [],
+        "sad_module": "—",
+        "priority": "HIGH"
+      },
+      "FR-02": {
+        "fr_id": "FR-02",
+        "status": "pending",
+        "srs_section": "SAD.md",
+        "code_files": [],
+        "test_files": [],
+        "sad_module": "—",
+        "priority": "HIGH"
+      },
+      "FR-03": {
+        "fr_id": "FR-03",
+        "status": "pending",
+        "srs_section": "SAD.md",
+        "code_files": [],
+        "test_files": [],
+        "sad_module": "—",
+        "priority": "HIGH"
+      },
+      "FR-04": {
+        "fr_id": "FR-04",
+        "status": "pending",
+        "srs_section": "SAD.md",
+        "code_files": [],
+        "test_files": [],
+        "sad_module": "—",
+        "priority": "HIGH"
+      },
+      "FR-05": {
+        "fr_id": "FR-05",
         "status": "pending",
         "srs_section": "SAD.md",
         "code_files": [],

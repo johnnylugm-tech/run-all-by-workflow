@@ -1039,3 +1039,115 @@ test_inventory:
       - "every tc_id enumerated above appears exactly once in tests[]"
       - "no FR/NFR range is collapsed (e.g. TC-FR01-01..07 expanded into 7 entries)"
       - "cross_ref_frs / cross_ref_nfrs metadata add coverage signals but never delete entries"
+# Top-level naming authority required by validate-handoff (P1→P2). Keys are
+# canonical FR-IDs (matches \bFR-\d+\b in SRS.md); values are layer-keyed lists
+# of authoritative test function names. This is a derived view of the canonical
+# tests[] block above — the tests[] block remains the single source of truth;
+# fr_tests is a flat index for spec-coverage and per-FR Gate 1 lookup.
+fr_tests:
+  FR-01:
+    unit:
+      - test_fr01_01_empty_whitespace_rejection
+      - test_fr01_02_length_rejection
+      - test_fr01_03_injection_blacklist
+      - test_fr01_05_valid_id_pending_record
+    integration:
+      - test_fr01_04_duplicate_name_rejection
+      - test_fr01_06_atomic_persistence
+      - test_fr01_07_json_output
+  FR-02:
+    unit:
+      - test_fr02_05_no_shell_true_safe_splitting
+    integration:
+      - test_fr02_01_successful_command_result_fields
+      - test_fr02_02_nonzero_failure
+      - test_fr02_03_timeout_exit_4
+      - test_fr02_04_output_tails_2000_chars
+    system:
+      - test_fr02_06_run_all_concurrency
+      - test_fr02_07_thread_safe_lossless_storage
+  FR-03:
+    unit:
+      - test_fr03_02_exponential_delay_injected_sleep
+      - test_fr03_05_half_open_success_closes_resets
+      - test_fr03_06_half_open_failure_reopens
+    integration:
+      - test_fr03_01_retry_cap
+      - test_fr03_03_threshold_opens_breaker
+      - test_fr03_04_open_rejection_no_subprocess
+    system:
+      - test_fr03_07_cross_process_persistent_breaker
+  FR-04:
+    unit:
+      - test_fr04_01_sha256_signature
+    integration:
+      - test_fr04_02_valid_replay_no_subprocess
+      - test_fr04_03_missing_entry_executes
+      - test_fr04_04_expired_entry_executes
+      - test_fr04_05_successful_cache_persistence
+    system:
+      - test_fr04_06_concurrent_cache_atomicity
+  FR-05:
+    integration:
+      - test_fr05_01_submit_command
+      - test_fr05_02_run_modes_cached
+      - test_fr05_03_status_all_fields
+      - test_fr05_04_list_status_filter
+      - test_fr05_05_clear_data
+      - test_fr05_06_one_line_json
+    system:
+      - test_fr05_07_exit_code_error_message_map
+      - test_fr05_08_python_m_taskq_entry
+  NFR-01:
+    benchmark:
+      - test_nfr01_01_100_iteration_p95_benchmark
+  NFR-02:
+    unit:
+      - test_nfr02_01_source_scan_no_shell_true
+      - test_nfr02_02_blacklist_character_coverage
+  NFR-03:
+    unit:
+      - test_nfr03_01_atomic_write_inspection
+    integration:
+      - test_nfr03_02_interrupted_write_json_validity
+      - test_nfr03_03_breaker_recovery_bound
+  NFR-04:
+    unit:
+      - test_nfr04_01_matching_line_stdout_redaction
+      - test_nfr04_02_matching_line_stderr_redaction
+      - test_nfr04_03_non_matching_line_preservation
+  NFR-05:
+    unit:
+      - test_nfr05_01_public_docstring_fr_reference
+  NFR-06:
+    unit:
+      - test_nfr06_01_all_default_values
+      - test_nfr06_02_all_environment_overrides
+      - test_nfr06_03_env_example_eight_variables
+  NFR-07:
+    unit:
+      - test_nfr07_05_normal_path_disables_injection
+    system:
+      - test_nfr07_01_tasks_fault_scenarios
+      - test_nfr07_02_breaker_fault_scenarios
+      - test_nfr07_03_cache_fault_scenarios
+      - test_nfr07_04_explicit_error_exit_behavior
+  NFR-08:
+    system:
+      - test_nfr08_01_four_process_concurrent_integrity
+      - test_nfr08_02_exclusive_shared_lock_behavior
+      - test_nfr08_03_network_filesystem_warning_fallback
+  NFR-09:
+    benchmark:
+      - test_nfr09_01_1000_task_p95_benchmark
+    system:
+      - test_nfr09_02_100_task_losslessness_json_integrity
+      - test_nfr09_03_peak_memory_bound
+  NFR-10:
+    integration:
+      - test_nfr10_01_v0_to_v1_migration_and_backup
+      - test_nfr10_02_future_version_refusal
+      - test_nfr10_03_failed_migration_preserves_backup_exits_1
+    system:
+      - test_nfr10_04_all_three_file_types
+cross_cutting: {}

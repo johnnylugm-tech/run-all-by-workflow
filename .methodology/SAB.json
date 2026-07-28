@@ -1,0 +1,170 @@
+{
+  "version": "1.0",
+  "created_at": "2026-07-28",
+  "phase": 2,
+  "project": "taskq",
+  "layers": [
+    {
+      "name": "entry",
+      "modules": [
+        {
+          "name": "taskq.__main__"
+        },
+        {
+          "name": "taskq.cli"
+        }
+      ],
+      "allowed_dependencies": [
+        "execution",
+        "persistence",
+        "config"
+      ]
+    },
+    {
+      "name": "execution",
+      "modules": [
+        {
+          "name": "taskq.executor"
+        },
+        {
+          "name": "taskq.breaker"
+        },
+        {
+          "name": "taskq.cache"
+        }
+      ],
+      "allowed_dependencies": [
+        "persistence",
+        "config"
+      ]
+    },
+    {
+      "name": "persistence",
+      "modules": [
+        {
+          "name": "taskq.store"
+        },
+        {
+          "name": "taskq.models"
+        }
+      ],
+      "allowed_dependencies": [
+        "config"
+      ]
+    },
+    {
+      "name": "config",
+      "modules": [
+        {
+          "name": "taskq.config"
+        }
+      ],
+      "allowed_dependencies": []
+    }
+  ],
+  "dependencies": {
+    "entry": [
+      "execution",
+      "persistence",
+      "config"
+    ],
+    "execution": [
+      "persistence",
+      "config"
+    ],
+    "persistence": [
+      "config"
+    ]
+  },
+  "quality_targets": {
+    "max_complexity": 15,
+    "min_coverage": 80,
+    "max_coupling": 0.3
+  },
+  "nfr_dimension_mapping": {
+    "NFR-01": "performance",
+    "NFR-02": "security",
+    "NFR-03": "error_handling",
+    "NFR-04": "security",
+    "NFR-05": "readability",
+    "NFR-07": "error_handling",
+    "NFR-08": "error_handling",
+    "NFR-09": "performance",
+    "NFR-10": "readability"
+  },
+  "nfr_traceability": {
+    "NFR-01": {
+      "type": "performance",
+      "target": "p95 < 50ms",
+      "module": "taskq.store"
+    },
+    "NFR-02": {
+      "type": "security",
+      "target": "shell=True count == 0",
+      "module": "taskq.executor"
+    },
+    "NFR-03": {
+      "type": "reliability",
+      "target": "100% atomic write; recovery <= cooldown+1s",
+      "module": "taskq.store"
+    },
+    "NFR-04": {
+      "type": "security",
+      "target": "100% redaction hit rate",
+      "module": "taskq.executor"
+    },
+    "NFR-05": {
+      "type": "maintainability",
+      "target": "100% docstring [FR-XX] coverage",
+      "module": "taskq.models"
+    },
+    "NFR-06": {
+      "type": "deployability",
+      "target": "8 TASKQ_* env vars centralised",
+      "module": "taskq.config"
+    },
+    "NFR-07": {
+      "type": "reliability",
+      "target": "no silent loss on fault injection",
+      "module": "taskq.store"
+    },
+    "NFR-08": {
+      "type": "reliability",
+      "target": "100% cross-process flock; no JSON corruption",
+      "module": "taskq.store"
+    },
+    "NFR-09": {
+      "type": "performance",
+      "target": "p95 < 100ms @ 1000 tasks; memory < 100MB",
+      "module": "taskq.store"
+    },
+    "NFR-10": {
+      "type": "maintainability",
+      "target": "100% schema migration success with backup",
+      "module": "taskq.store"
+    }
+  },
+  "advisory_only": [
+    "deployability"
+  ],
+  "gate_score_overrides": {
+    "performance": 75.0,
+    "security": 80.0,
+    "error_handling": 80.0,
+    "readability": 80.0
+  },
+  "fr_module_traceability": {
+    "FR-01": "taskq.cli",
+    "FR-02": "taskq.executor",
+    "FR-03": "taskq.breaker",
+    "FR-04": "taskq.cache",
+    "FR-05": "taskq.cli"
+  },
+  "architecture_constraints": [
+    "no_circular_dependencies"
+  ],
+  "high_risk_modules": [
+    "taskq.executor",
+    "taskq.store"
+  ]
+}

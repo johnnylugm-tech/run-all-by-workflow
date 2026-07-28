@@ -1,0 +1,22 @@
+{
+  "fr": "ADR.md",
+  "review_status": "APPROVE",
+  "reason": "ADR v1.0.0 documents 16 architectural decisions that are well-aligned with SAD §1-§3, SAD §5 SAB, SAD §6 STRIDE-lite, and SRS FR-01..FR-05 + NFR-01..NFR-10. Each ADR carries Status/Context/Decision/Consequences and a substantive Alternatives-considered block (an addition beyond the template). Layering (ADR-002), single store boundary (ADR-003), atomic write (ADR-004), flock (ADR-005), schema migration (ADR-006), ThreadPoolExecutor (ADR-007), breaker (ADR-008), injectable sleep (ADR-009), no shell=True (ADR-010), redaction (ADR-011), centralized config (ADR-012), --inject-fault (ADR-013), cache signature (ADR-014), exit-code policy (ADR-015), and one-site fault isolation (ADR-016) all map back to specific SAD §2.2.x responsibilities and SRS §3/§4 requirements. Four low-severity nits flagged",
+  "citations": [
+    "02-architecture/adr/ADR.md:108",
+    "02-architecture/adr/ADR.md:282",
+    "02-architecture/adr/ADR.md:518",
+    "02-architecture/adr/ADR.md:128",
+    "harness/templates/ADR.md:20",
+    "01-requirements/SRS.md:108",
+    "02-architecture/SAD.md:169",
+    "02-architecture/SAD.md:381"
+  ],
+  "docs_embedded": [
+    "SRS.md",
+    "SAD.md",
+    "ADR.md",
+    "harness/templates/ADR.md"
+  ],
+  "confidence": 0.9
+}

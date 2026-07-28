@@ -1,20 +1,1041 @@
-# TEST_INVENTORY.yaml — P1 Naming Authority
-# Maps every FR to expected test function names. These are the AUTHORITATIVE names
-# that derive_test_cases.md preserves in TEST_SPEC.md (P2 single source of truth).
-# Specified per FR and per test category (unit/integration/cross_cutting).
-# If no name is specified for a category, derive_test_cases.md fills the gap with
-# names derived via the 7-Question Protocol.
-format_version: "1.1"
-
-fr_tests:
-  FR-01:
-    unit:
-      - test_fr01_example_unit
-    integration:
-      - test_fr01_example_integration
-
-cross_cutting:
-  security:
-    - test_security_example
-  deployment:
-    - test_deployment_example
+# TEST_INVENTORY.yaml — P1→P2 test-case naming authority for taskq
+# Maps every FR/NFR acceptance criterion enumerated in TRACEABILITY_MATRIX.md
+# §5 test-to-requirement reverse index (forward trace in §2/§3) to an
+# authoritative test function name. Each enumerated tc_id appears as its own
+# entry; sub-case ranges (e.g. TC-FR01-01..07) are EXPANDED — they are NEVER
+# collapsed. Cross-cutting coverage is signalled via cross_ref_frs /
+# cross_ref_nfrs metadata; entries are never deleted for "logical coverage"
+# reasons. derive_test_cases.md (P2) consumes this file to populate
+# TEST_SPEC.md; implement_test_cases.md (P2) consumes the test_name field.
+test_inventory:
+  format_version: "1.1"
+  srs_version: "1.0"
+  matrix_section: "§5 test-to-requirement reverse index"
+  source:
+    srs: 01-requirements/SRS.md
+    matrix: 01-requirements/TRACEABILITY_MATRIX.md
+  naming_convention: "test_<fr_key_lower><nn>_<descriptor_snake>"
+  naming_pattern_examples:
+    - "test_fr01_01_empty_whitespace_rejection"
+    - "test_nfr07_04_explicit_error_exit_behavior"
+  layer_taxonomy:
+    - unit: "pure logic / model / static inspection; no subprocess, no real store"
+    - integration: "one or more real modules + real JSON store + real subprocess"
+    - system: "end-to-end via `python -m taskq` or multi-process/concurrent run"
+    - benchmark: "pytest-benchmark measurement for NFR latency/memory gates"
+  tests:
+    - tc_id: TC-FR01-01
+      test_name: test_fr01_01_empty_whitespace_rejection
+      fr_id: FR-01
+      layer: unit
+      spec_reference: "SRS.md §3 FR-01 (empty/whitespace rejection)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-01"
+      description: "submit with an empty string or whitespace-only command is rejected"
+      asserts:
+        - "exit code equals 2"
+        - "stderr contains empty/whitespace rejection message"
+        - "$TASKQ_HOME/tasks.json is not written"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR01-02
+      test_name: test_fr01_02_length_rejection
+      fr_id: FR-01
+      layer: unit
+      spec_reference: "SRS.md §3 FR-01 (length > 1000 chars)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-02"
+      description: "submit with command length strictly greater than 1000 characters is rejected"
+      asserts:
+        - "exit code equals 2"
+        - "stderr reports length violation"
+        - "no entry written to tasks.json"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR01-03
+      test_name: test_fr01_03_injection_blacklist
+      fr_id: FR-01
+      layer: unit
+      spec_reference: "SRS.md §3 FR-01 (blacklist ; | & $ > < `)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-03"
+      description: "submit with any of ; | & $ > < ` is rejected regardless of surrounding context"
+      asserts:
+        - "each listed character causes exit code 2"
+        - "stderr names the forbidden character"
+        - "no entry written to tasks.json"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-02
+    - tc_id: TC-FR01-04
+      test_name: test_fr01_04_duplicate_name_rejection
+      fr_id: FR-01
+      layer: integration
+      spec_reference: "SRS.md §3 FR-01 (duplicate pending/running --name)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-04"
+      description: "submitting with --name that matches an existing pending or running task is rejected"
+      asserts:
+        - "exit code equals 2"
+        - "stderr reports duplicate-name conflict"
+        - "existing tasks.json contents are unchanged"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR01-05
+      test_name: test_fr01_05_valid_id_pending_record
+      fr_id: FR-01
+      layer: unit
+      spec_reference: "SRS.md §3 FR-01 (8-hex id, pending status, fields)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-05"
+      description: "a valid submit produces an 8-hex id, status pending, and recorded command/name/created_at"
+      asserts:
+        - "returned id matches ^[0-9a-f]{8}$"
+        - "status is 'pending'"
+        - "command, name, created_at fields are recorded"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR01-06
+      test_name: test_fr01_06_atomic_persistence
+      fr_id: FR-01
+      layer: integration
+      spec_reference: "SRS.md §3 FR-01 (atomic tasks.json write)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-06"
+      description: "successful submit writes tasks.json atomically via temp-file + os.replace"
+      asserts:
+        - "tasks.json is valid JSON after write"
+        - "no tasks.json.<tmp> orphan remains"
+        - "recorded entry matches submit input"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-08
+    - tc_id: TC-FR01-07
+      test_name: test_fr01_07_json_output
+      fr_id: FR-01
+      layer: integration
+      spec_reference: "SRS.md §3 FR-01 (--json one-line output)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-01 → TC-FR01-07"
+      description: "submit --json emits a single-line JSON object with id and status:'pending'"
+      asserts:
+        - "stdout is exactly one line"
+        - "line is valid JSON"
+        - "parsed object contains id and status=='pending'"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-FR02-01
+      test_name: test_fr02_01_successful_command_result_fields
+      fr_id: FR-02
+      layer: integration
+      spec_reference: "SRS.md §3 FR-02 (exit 0 → done, full result fields)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-01"
+      description: "running a successful command yields status done, exit_code 0, and recorded result fields"
+      asserts:
+        - "task status becomes 'done'"
+        - "exit_code equals 0"
+        - "result contains stdout_tail, stderr_tail, duration_ms, finished_at"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-04
+    - tc_id: TC-FR02-02
+      test_name: test_fr02_02_nonzero_failure
+      fr_id: FR-02
+      layer: integration
+      spec_reference: "SRS.md §3 FR-02 (non-zero → failed)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-02"
+      description: "running a non-zero exit command yields status failed and recorded exit_code"
+      asserts:
+        - "task status becomes 'failed'"
+        - "exit_code matches the non-zero value"
+        - "stdout_tail and stderr_tail recorded"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-04
+    - tc_id: TC-FR02-03
+      test_name: test_fr02_03_timeout_exit_4
+      fr_id: FR-02
+      layer: integration
+      spec_reference: "SRS.md §3 FR-02 (single-task timeout → exit 4)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-03"
+      description: "single-task run exceeding TASKQ_TASK_TIMEOUT terminates with status timeout and cli exit 4"
+      asserts:
+        - "task status becomes 'timeout'"
+        - "cli exit code equals 4"
+        - "TimeoutExpired is mapped, not propagated"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-FR02-04
+      test_name: test_fr02_04_output_tails_2000_chars
+      fr_id: FR-02
+      layer: integration
+      spec_reference: "SRS.md §3 FR-02 (2000-char stdout/stderr tail bound)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-04"
+      description: "stdout_tail and stderr_tail each retain at most the last 2000 characters of process output"
+      asserts:
+        - "len(stdout_tail) <= 2000"
+        - "len(stderr_tail) <= 2000"
+        - "tail content matches the last 2000 chars of actual output"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-04
+    - tc_id: TC-FR02-05
+      test_name: test_fr02_05_no_shell_true_safe_splitting
+      fr_id: FR-02
+      layer: unit
+      spec_reference: "SRS.md §3 FR-02 (no shell=True, shlex.split)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-05"
+      description: "executor invokes subprocess.run with shlex.split and shell=False for every command path"
+      asserts:
+        - "subprocess invocations use shell=False"
+        - "command tokens are split via shlex.split"
+        - "no path builds commands via string concatenation"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-02
+    - tc_id: TC-FR02-06
+      test_name: test_fr02_06_run_all_concurrency
+      fr_id: FR-02
+      layer: system
+      spec_reference: "SRS.md §3 FR-02 (run --all, ThreadPoolExecutor)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-06"
+      description: "run --all executes all pending tasks concurrently with TASKQ_MAX_WORKERS without task loss"
+      asserts:
+        - "every pending task transitions out of 'pending'"
+        - "tasks.json has no orphaned pending entries"
+        - "duration_ms reflects parallel execution under worker cap"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs:
+        - NFR-08
+        - NFR-09
+    - tc_id: TC-FR02-07
+      test_name: test_fr02_07_thread_safe_lossless_storage
+      fr_id: FR-02
+      layer: system
+      spec_reference: "SRS.md §3 FR-02 (thread-safe shared lock)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-02 → TC-FR02-07"
+      description: "concurrent writers under one ThreadPoolExecutor complete without corrupted tasks.json"
+      asserts:
+        - "final tasks.json is valid JSON"
+        - "all writer attempts either committed or raised under lock"
+        - "no entry is duplicated or silently dropped"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-08
+    - tc_id: TC-FR03-01
+      test_name: test_fr03_01_retry_cap
+      fr_id: FR-03
+      layer: integration
+      spec_reference: "SRS.md §3 FR-03 (retry up to TASKQ_RETRY_LIMIT)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-01"
+      description: "failed/timeout result is retried up to the configured retry limit and no further"
+      asserts:
+        - "retry count equals TASKQ_RETRY_LIMIT on continued failure"
+        - "no additional attempt occurs past the cap"
+        - "final status reflects the last attempt outcome"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR03-02
+      test_name: test_fr03_02_exponential_delay_injected_sleep
+      fr_id: FR-03
+      layer: unit
+      spec_reference: "SRS.md §3 FR-03 (TASKQ_BACKOFF_BASE × 2^n sleep, injectable)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-02"
+      description: "before retry n, the executor sleeps TASKQ_BACKOFF_BASE × 2^n seconds via the injected sleep hook"
+      asserts:
+        - "sleep called with delay = base * 2**n for each n in 0..retry_cap-1"
+        - "real sleep is bypassed via injection (no wall-clock dependency)"
+        - "delay values are recorded and asserted"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR03-03
+      test_name: test_fr03_03_threshold_opens_breaker
+      fr_id: FR-03
+      layer: integration
+      spec_reference: "SRS.md §3 FR-03 (TASKQ_BREAKER_THRESHOLD consecutive final failures → OPEN)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-03"
+      description: "reaching the consecutive-failure threshold transitions breaker state to OPEN"
+      asserts:
+        - "breaker state equals 'OPEN' after threshold final failures"
+        - "count was reset before transitions in HALF_OPEN case (separate test)"
+        - "transition is persisted to breaker.json"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-10
+    - tc_id: TC-FR03-04
+      test_name: test_fr03_04_open_rejection_no_subprocess
+      fr_id: FR-03
+      layer: integration
+      spec_reference: "SRS.md §3 FR-03 (OPEN rejects with exit 3, no subprocess)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-04"
+      description: "while breaker is OPEN, run attempts are rejected with stderr and exit 3, without invoking a subprocess"
+      asserts:
+        - "cli exit code equals 3"
+        - "stderr contains 'breaker open'"
+        - "subprocess invocation count is zero"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-FR03-05
+      test_name: test_fr03_05_half_open_success_closes_resets
+      fr_id: FR-03
+      layer: unit
+      spec_reference: "SRS.md §3 FR-03 (HALF_OPEN success → CLOSED + reset count)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-05"
+      description: "a successful HALF_OPEN probe transitions state to CLOSED and resets the failure count"
+      asserts:
+        - "state becomes 'CLOSED'"
+        - "consecutive-failure count is reset to 0"
+        - "no further rejection occurs until a new threshold streak"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR03-06
+      test_name: test_fr03_06_half_open_failure_reopens
+      fr_id: FR-03
+      layer: unit
+      spec_reference: "SRS.md §3 FR-03 (HALF_OPEN failure → OPEN)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-06"
+      description: "a failing HALF_OPEN probe returns breaker to OPEN and restarts the cooldown window"
+      asserts:
+        - "state becomes 'OPEN'"
+        - "cooldown window is restarted from the failure timestamp"
+        - "next run is rejected with exit 3"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-FR03-07
+      test_name: test_fr03_07_cross_process_persistent_breaker
+      fr_id: FR-03
+      layer: system
+      spec_reference: "SRS.md §3 FR-03 (global shared breaker across processes)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-03 → TC-FR03-07"
+      description: "process A opening the breaker is observable to process B via shared breaker.json with no loss"
+      asserts:
+        - "process B reads state 'OPEN' from breaker.json"
+        - "process B rejects subsequent runs without subprocess"
+        - "atomic write integrity preserved across processes"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-08
+        - NFR-10
+    - tc_id: TC-FR04-01
+      test_name: test_fr04_01_sha256_signature
+      fr_id: FR-04
+      layer: unit
+      spec_reference: "SRS.md §3 FR-04 (sha256(command) signature)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-01"
+      description: "cache key is exactly sha256(command.encode('utf-8')).hexdigest()"
+      asserts:
+        - "signature for 'echo hi' equals sha256 hex of the literal command"
+        - "different whitespace or quoting produce different signatures"
+        - "unicode and control characters are encoded utf-8"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR04-02
+      test_name: test_fr04_02_valid_replay_no_subprocess
+      fr_id: FR-04
+      layer: integration
+      spec_reference: "SRS.md §3 FR-04 (TTL-valid done result replays, cached:true, no subprocess)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-02"
+      description: "run --cached with a TTL-valid prior done result replays the result without invoking subprocess"
+      asserts:
+        - "task status becomes 'done' with cached=True"
+        - "exit_code and stdout_tail match the cached entry"
+        - "subprocess invocation count is zero"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-FR04-03
+      test_name: test_fr04_03_missing_entry_executes
+      fr_id: FR-04
+      layer: integration
+      spec_reference: "SRS.md §3 FR-04 (missing cache → normal execution)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-03"
+      description: "run --cached with no cache entry executes the command normally and records the result"
+      asserts:
+        - "subprocess runs once"
+        - "task transitions through pending→running→done"
+        - "no cache entry is read"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-FR04-04
+      test_name: test_fr04_04_expired_entry_executes
+      fr_id: FR-04
+      layer: integration
+      spec_reference: "SRS.md §3 FR-04 (expired cache → normal execution)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-04"
+      description: "run --cached with a cache entry older than TASKQ_CACHE_TTL executes normally"
+      asserts:
+        - "subprocess runs once"
+        - "expired entry is treated as missing"
+        - "fresh result overwrites or supplements cache per policy"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-FR04-05
+      test_name: test_fr04_05_successful_cache_persistence
+      fr_id: FR-04
+      layer: integration
+      spec_reference: "SRS.md §3 FR-04 (successful result persisted atomically to cache.json)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-05"
+      description: "after a successful non-cached run, cache.json contains a fresh entry written atomically"
+      asserts:
+        - "cache.json is valid JSON"
+        - "entry matches command signature and result fields"
+        - "no .tmp orphan file remains"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-04
+    - tc_id: TC-FR04-06
+      test_name: test_fr04_06_concurrent_cache_atomicity
+      fr_id: FR-04
+      layer: system
+      spec_reference: "SRS.md §3 FR-04 (concurrent cache reads/writes are atomic)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-04 → TC-FR04-06"
+      description: "concurrent readers and writers of cache.json produce a valid file with no torn writes"
+      asserts:
+        - "final cache.json parses as JSON"
+        - "all reads return a coherent snapshot"
+        - "no entry is silently lost under contention"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-08
+    - tc_id: TC-FR05-01
+      test_name: test_fr05_01_submit_command
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (submit subcommand behavior)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-01"
+      description: "python -m taskq submit \"<cmd>\" parses and dispatches to the FR-01 validation path"
+      asserts:
+        - "valid input yields an 8-hex id and pending task"
+        - "invalid input exits 2 with stderr (delegated to FR-01 tests)"
+        - "--name forwarded to the submit parser"
+      cross_ref_frs:
+        - FR-01
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-02
+      test_name: test_fr05_02_run_modes_cached
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (run <id> [--cached] / run --all)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-02"
+      description: "run subcommand handles single-id and --all forms, and propagates --cached"
+      asserts:
+        - "run <id> without --cached executes normally"
+        - "run --all dispatches to the concurrent executor"
+        - "run --cached delegates to the cache replay branch"
+      cross_ref_frs:
+        - FR-02
+        - FR-04
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-03
+      test_name: test_fr05_03_status_all_fields
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (status <id> outputs all task fields)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-03"
+      description: "status <id> emits id, name, command, created_at, status, and the latest result subdocument"
+      asserts:
+        - "output contains every persisted task field"
+        - "result subdocument matches the stored record"
+        - "unknown id returns exit 2 with stderr"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-04
+      test_name: test_fr05_04_list_status_filter
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (list [--status S])"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-04"
+      description: "list emits each task; --status filters tasks by lifecycle state"
+      asserts:
+        - "with no --status, all tasks are listed"
+        - "with --status=done, only 'done' tasks appear"
+        - "ordering is deterministic for snapshot comparison"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-05
+      test_name: test_fr05_05_clear_data
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (clear removes data files under TASKQ_HOME)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-05"
+      description: "clear removes/empties tasks.json, breaker.json, and cache.json under TASKQ_HOME"
+      asserts:
+        - "all three files are removed or reset to canonical empty schema"
+        - "next submit proceeds without recovery errors"
+        - "subsequent reads see no prior state"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-10
+    - tc_id: TC-FR05-06
+      test_name: test_fr05_06_one_line_json
+      fr_id: FR-05
+      layer: integration
+      spec_reference: "SRS.md §3 FR-05 (--json one-line output)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-06"
+      description: "with --json, every subcommand emits exactly one machine-readable JSON line on stdout"
+      asserts:
+        - "stdout contains exactly one line"
+        - "line parses as JSON"
+        - "shape matches the subcommand output contract"
+      cross_ref_frs:
+        - FR-01
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-07
+      test_name: test_fr05_07_exit_code_error_message_map
+      fr_id: FR-05
+      layer: system
+      spec_reference: "SRS.md §3/§7 FR-05 (canonical exit code + message map)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-07"
+      description: "exit code and stderr mapping across the full input/error catalog is canonical"
+      asserts:
+        - "0 on success"
+        - "2 on validation errors including unknown task id"
+        - "3 on breaker open"
+        - "4 on single-task timeout"
+        - "1 on other internal errors"
+        - "stderr message text matches the canonical strings"
+      cross_ref_frs:
+        - FR-01
+        - FR-02
+        - FR-03
+      cross_ref_nfrs: []
+    - tc_id: TC-FR05-08
+      test_name: test_fr05_08_python_m_taskq_entry
+      fr_id: FR-05
+      layer: system
+      spec_reference: "SRS.md §3/§2 FR-05 (python -m taskq entry point)"
+      trace_link: "TRACEABILITY_MATRIX.md §2 FR-05 → TC-FR05-08"
+      description: "python -m taskq reaches taskq.__main__ and dispatches subcommands"
+      asserts:
+        - "`python -m taskq --help` exits 0 with usage line"
+        - "argv-driven dispatch routes through the argparse parser"
+        - "exit codes propagate from the cli layer"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR01-01
+      test_name: test_nfr01_01_100_iteration_p95_benchmark
+      fr_id: NFR-01
+      layer: benchmark
+      spec_reference: "SRS.md §4 NFR-01 (submit+status p95 < 50ms / 100 iters)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-01 → TC-NFR01-01"
+      description: "pytest-benchmark measures submit+status p95 over 100 iterations excluding subprocess execution"
+      asserts:
+        - "benchmark reports a measurable p95"
+        - "p95 is below 50 ms"
+        - "fixture isolates TASKQ_HOME and excludes subprocess execution time"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-09
+    - tc_id: TC-NFR02-01
+      test_name: test_nfr02_01_source_scan_no_shell_true
+      fr_id: NFR-02
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-02 (zero shell=True in codebase)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-02 → TC-NFR02-01"
+      description: "static scan of the entire codebase finds zero uses of shell=True"
+      asserts:
+        - "code scan of the entire codebase returns no 'shell=True' matches"
+        - "any future regression fails the scan before merge"
+        - "scan covers the entire codebase without path exclusions"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR02-02
+      test_name: test_nfr02_02_blacklist_character_coverage
+      fr_id: NFR-02
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-02 (FR-01 blacklist coverage)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-02 → TC-NFR02-02"
+      description: "every character in the SRS blacklist has a parametrized rejection test"
+      asserts:
+        - "each of ; | & $ > < ` has an independent parametrized case"
+        - "every parametrized case exits 2"
+        - "no blacklist character is omitted from the parameter list"
+      cross_ref_frs:
+        - FR-01
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR03-01
+      test_name: test_nfr03_01_atomic_write_inspection
+      fr_id: NFR-03
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-03 (temp-file + os.replace for all three files)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-03 → TC-NFR03-01"
+      description: "static inspection confirms tasks.json, breaker.json, cache.json use temp-file + os.replace writes"
+      asserts:
+        - "atomic_write helper exists in taskq.store"
+        - "every persist call uses atomic_write"
+        - "no direct open(path, 'w').write(...) persists the three files"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR03-02
+      test_name: test_nfr03_02_interrupted_write_json_validity
+      fr_id: NFR-03
+      layer: integration
+      spec_reference: "SRS.md §4 NFR-03 (interruption leaves valid JSON)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-03 → TC-NFR03-02"
+      description: "simulated kill during write leaves one of the two files (old or new) intact and parseable"
+      asserts:
+        - "tasks.json parses after simulated SIGKILL during write"
+        - "breaker.json parses after the same scenario"
+        - "cache.json parses after the same scenario"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-08
+    - tc_id: TC-NFR03-03
+      test_name: test_nfr03_03_breaker_recovery_bound
+      fr_id: NFR-03
+      layer: integration
+      spec_reference: "SRS.md §4 NFR-03 (OPEN → CLOSED ≤ cooldown + 1s)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-03 → TC-NFR03-03"
+      description: "OPEN breaker returns to CLOSED no later than TASKQ_BREAKER_COOLDOWN + 1 second"
+      asserts:
+        - "HALF_OPEN trial permitted at or before cooldown expiry"
+        - "successful trial transitions to CLOSED within cooldown + 1s"
+        - "wall-clock bound is asserted using injectable clock"
+      cross_ref_frs:
+        - FR-03
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR04-01
+      test_name: test_nfr04_01_matching_line_stdout_redaction
+      fr_id: NFR-04
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-04 (sk-… / token=… stdout redaction)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-04 → TC-NFR04-01"
+      description: "any stdout_tail line matching sk-[A-Za-z0-9_-]{8,} or token=\\S+ is fully replaced by [REDACTED]"
+      asserts:
+        - "matching lines are replaced in their entirety"
+        - "non-matching lines remain unchanged"
+        - "result is recorded before persistence boundary"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR04-02
+      test_name: test_nfr04_02_matching_line_stderr_redaction
+      fr_id: NFR-04
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-04 (sk-… / token=… stderr redaction)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-04 → TC-NFR04-02"
+      description: "any stderr_tail line matching sk-[A-Za-z0-9_-]{8,} or token=\\S+ is fully replaced by [REDACTED]"
+      asserts:
+        - "matching lines are replaced in their entirety"
+        - "non-matching lines remain unchanged"
+        - "stdout and stderr redaction paths are independent"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR04-03
+      test_name: test_nfr04_03_non_matching_line_preservation
+      fr_id: NFR-04
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-04 (no false positives)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-04 → TC-NFR04-03"
+      description: "lines that look similar but do not match the regex are preserved verbatim"
+      asserts:
+        - "short tokens below the 8-char threshold pass through"
+        - "lines with non-greedy separators above the threshold still match"
+        - "regression fixture captures prior false-positive scenarios"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR05-01
+      test_name: test_nfr05_01_public_docstring_fr_reference
+      fr_id: NFR-05
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-05 (every public callable has [FR-XX] in docstring)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-05 → TC-NFR05-01"
+      description: "inspection reports 100% of public callables have docstrings containing at least one [FR-XX] reference"
+      asserts:
+        - "every public function and class in src/taskq has a docstring"
+        - "every public docstring matches the regex /\\[FR-\\d+\\]/"
+        - "coverage = public_callable_with_marker / public_callable_total equals 1.0"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR06-01
+      test_name: test_nfr06_01_all_default_values
+      fr_id: NFR-06
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-06 (8 TASKQ_* env vars with canonical defaults)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-06 → TC-NFR06-01"
+      description: "with no environment overrides, config.py returns the canonical default for every TASKQ_* variable"
+      asserts:
+        - "all eight names resolve to documented defaults"
+        - "values match the SPEC canonical defaults"
+        - "missing env file does not raise"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR06-02
+      test_name: test_nfr06_02_all_environment_overrides
+      fr_id: NFR-06
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-06 (env override coverage for all 8 vars)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-06 → TC-NFR06-02"
+      description: "every TASKQ_* name can be overridden via environment variable and reflects in Config"
+      asserts:
+        - "each of the 8 names has a parametrized override case"
+        - "Config reflects the env value per case"
+        - "invalid values raise the documented validation error"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR06-03
+      test_name: test_nfr06_03_env_example_eight_variables
+      fr_id: NFR-06
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-06 (.env.example declares + annotates all 8 vars)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-06 → TC-NFR06-03"
+      description: ".env.example contains every TASKQ_* name with an explanatory annotation"
+      asserts:
+        - "all eight names are present and uncommented"
+        - "each name has a trailing annotation line"
+        - "the file exists at the repo root and is loadable"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR07-01
+      test_name: test_nfr07_01_tasks_fault_scenarios
+      fr_id: NFR-07
+      layer: system
+      spec_reference: "SRS.md §4 NFR-07 (tasks.json recovery/fail-fast scenarios)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-07 → TC-NFR07-01"
+      description: "for tasks.json, mid-write corruption, OSError, disk full, and kill scenarios recover from backup or fail fast"
+      asserts:
+        - "mid-write corruption either recovers or exits non-zero with stderr"
+        - "simulated OSError/disk-full/kill scenarios cover the four sub-cases"
+        - "no silent rebuild occurs; backup file is retained on recovery"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-10
+    - tc_id: TC-NFR07-02
+      test_name: test_nfr07_02_breaker_fault_scenarios
+      fr_id: NFR-07
+      layer: system
+      spec_reference: "SRS.md §4 NFR-07 (breaker.json recovery/fail-fast scenarios)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-07 → TC-NFR07-02"
+      description: "for breaker.json, mid-write corruption, OSError, disk full, and kill scenarios recover or fail fast"
+      asserts:
+        - "mid-write corruption either recovers or exits non-zero with stderr"
+        - "OSError/disk-full/kill scenarios cover the four sub-cases"
+        - "no silent rebuild occurs; backup file is retained on recovery"
+      cross_ref_frs:
+        - FR-03
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-10
+    - tc_id: TC-NFR07-03
+      test_name: test_nfr07_03_cache_fault_scenarios
+      fr_id: NFR-07
+      layer: system
+      spec_reference: "SRS.md §4 NFR-07 (cache.json recovery/fail-fast scenarios)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-07 → TC-NFR07-03"
+      description: "for cache.json, mid-write corruption, OSError, disk full, and kill scenarios recover or fail fast"
+      asserts:
+        - "mid-write corruption either recovers or exits non-zero with stderr"
+        - "OSError/disk-full/kill scenarios cover the four sub-cases"
+        - "no silent rebuild occurs; backup file is retained on recovery"
+      cross_ref_frs:
+        - FR-04
+      cross_ref_nfrs:
+        - NFR-03
+        - NFR-10
+    - tc_id: TC-NFR07-04
+      test_name: test_nfr07_04_explicit_error_exit_behavior
+      fr_id: NFR-07
+      layer: system
+      spec_reference: "SRS.md §4 NFR-07 (explicit stderr + non-zero exit, no silent swallow)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-07 → TC-NFR07-04"
+      description: "fail-fast path emits explicit stderr and exits non-zero across all three file types"
+      asserts:
+        - "stderr contains a human-readable failure message"
+        - "process exits with non-zero status"
+        - "no exception is silently swallowed by recovery logic"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR07-05
+      test_name: test_nfr07_05_normal_path_disables_injection
+      fr_id: NFR-07
+      layer: unit
+      spec_reference: "SRS.md §4 NFR-07 (fault injection is test-only)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-07 → TC-NFR07-05"
+      description: "normal execution path does not enable fault injection; injection requires --inject-fault or test monkeypatch"
+      asserts:
+        - "CLI ignores unknown --inject-fault values or rejects them"
+        - "default code paths do not consult any fault-injection registry"
+        - "monkeypatch is the only path in non-CLI tests"
+      cross_ref_frs:
+        - FR-05
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR08-01
+      test_name: test_nfr08_01_four_process_concurrent_integrity
+      fr_id: NFR-08
+      layer: system
+      spec_reference: "SRS.md §4 NFR-08 (multi-process integrity over tasks.json / breaker.json / cache.json)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-08 → TC-NFR08-01"
+      description: "four concurrent python -m taskq processes leave all three data files valid with no corruption"
+      asserts:
+        - "each file parses as JSON after the run"
+        - "no torn writes observed across processes"
+        - "no silent drops; the merged state equals the union of attempted writes"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs:
+        - NFR-03
+    - tc_id: TC-NFR08-02
+      test_name: test_nfr08_02_exclusive_shared_lock_behavior
+      fr_id: NFR-08
+      layer: system
+      spec_reference: "SRS.md §4 NFR-08 (exclusive writer / shared reader locks)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-08 → TC-NFR08-02"
+      description: "writer acquires exclusive lock (fcntl/msvcrt); reader acquires shared lock; no mutually exclusive reader contention"
+      asserts:
+        - "writer lock excludes other writers"
+        - "reader lock is shared across concurrent readers"
+        - "on unsupported fs, atomic write path is used and WARNING emitted"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR08-03
+      test_name: test_nfr08_03_network_filesystem_warning_fallback
+      fr_id: NFR-08
+      layer: system
+      spec_reference: "SRS.md §4 NFR-08 (network fs downgrade)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-08 → TC-NFR08-03"
+      description: "on network filesystems without flock support, atomic writes are retained and a WARNING is emitted"
+      asserts:
+        - "WARNING line emitted once per process"
+        - "data files remain valid JSON after concurrent writes"
+        - "no flock exception escapes to the user"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR09-01
+      test_name: test_nfr09_01_1000_task_p95_benchmark
+      fr_id: NFR-09
+      layer: benchmark
+      spec_reference: "SRS.md §4 NFR-09 (1000-task p95 < 100ms)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-09 → TC-NFR09-01"
+      description: "pytest-benchmark measures combined submit+status p95 at 1000 tasks under 100 ms"
+      asserts:
+        - "benchmark reports a measurable p95 at 1000 tasks"
+        - "p95 is below 100 ms"
+        - "fixture generates the 1000-task corpus in setup"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-01
+    - tc_id: TC-NFR09-02
+      test_name: test_nfr09_02_100_task_losslessness_json_integrity
+      fr_id: NFR-09
+      layer: system
+      spec_reference: "SRS.md §4 NFR-09 (100-task run --all lossless)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-09 → TC-NFR09-02"
+      description: "running 100 tasks via run --all completes with no task loss and tasks.json remains valid JSON"
+      asserts:
+        - "100 tasks all reach a terminal status (done/failed/timeout)"
+        - "tasks.json parses as JSON"
+        - "no task id is duplicated or missing from final state"
+      cross_ref_frs:
+        - FR-02
+      cross_ref_nfrs:
+        - NFR-08
+    - tc_id: TC-NFR09-03
+      test_name: test_nfr09_03_peak_memory_bound
+      fr_id: NFR-09
+      layer: system
+      spec_reference: "SRS.md §4 NFR-09 (peak memory < 100 MB at 1000 tasks)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-09 → TC-NFR09-03"
+      description: "streaming iterator keeps peak memory under 100 MB during 1000-task processing"
+      asserts:
+        - "peak RSS or traced peak stays under 100 MB"
+        - "iterator streams tasks.json without slurping the whole list"
+        - "memory bound is asserted via tracemalloc or psutil"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR10-01
+      test_name: test_nfr10_01_v0_to_v1_migration_and_backup
+      fr_id: NFR-10
+      layer: integration
+      spec_reference: "SRS.md §4 NFR-10 (v < 1 → v1 migration + backup)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-10 → TC-NFR10-01"
+      description: "a fixture file with version below 1 is migrated to v1 with the original backed up as <file>.v<n>.bak"
+      asserts:
+        - "post-read file has version: 1"
+        - "backup file exists and matches the original content"
+        - "migrated content matches the spec upgrade rules"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR10-02
+      test_name: test_nfr10_02_future_version_refusal
+      fr_id: NFR-10
+      layer: integration
+      spec_reference: "SRS.md §4 NFR-10 (version > 1 refusal + prompt)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-10 → TC-NFR10-02"
+      description: "a file with version above 1 refuses access and prompts use of an upgrade tool"
+      asserts:
+        - "stderr mentions upgrade tool"
+        - "exit code is non-zero (canonical 1)"
+        - "file is not modified"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR10-03
+      test_name: test_nfr10_03_failed_migration_preserves_backup_exits_1
+      fr_id: NFR-10
+      layer: integration
+      spec_reference: "SRS.md §4 NFR-10 (failed migration retains backup, exits 1)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-10 → TC-NFR10-03"
+      description: "a migration that fails halfway keeps the .v<n>.bak intact and exits 1"
+      asserts:
+        - "backup file is retained on failure"
+        - "process exits with code 1"
+        - "stderr reports the migration failure reason"
+      cross_ref_frs: []
+      cross_ref_nfrs: []
+    - tc_id: TC-NFR10-04
+      test_name: test_nfr10_04_all_three_file_types
+      fr_id: NFR-10
+      layer: system
+      spec_reference: "SRS.md §4 NFR-10 (schema evolution across tasks/breaker/cache)"
+      trace_link: "TRACEABILITY_MATRIX.md §3 NFR-10 → TC-NFR10-04"
+      description: "schema evolution policy applies uniformly across tasks.json, breaker.json, and cache.json"
+      asserts:
+        - "v < 1 → v1 migration applies to all three"
+        - "v > 1 refusal applies to all three"
+        - "failed migration preserves backup for all three"
+      cross_ref_frs: []
+      cross_ref_nfrs:
+        - NFR-07
+  coverage_summary:
+    total_test_cases: 63
+    enumeration_source: "TRACEABILITY_MATRIX.md §5 (Test-to-requirement reverse index)"
+    enumeration_proof:
+      matrix_ranges:
+        - "TC-FR01-01..07 → 7 IDs"
+        - "TC-FR02-01..07 → 7 IDs"
+        - "TC-FR03-01..07 → 7 IDs"
+        - "TC-FR04-01..06 → 6 IDs"
+        - "TC-FR05-01..08 → 8 IDs"
+        - "TC-NFR01-01 → 1 ID"
+        - "TC-NFR02-01..02 → 2 IDs"
+        - "TC-NFR03-01..03 → 3 IDs"
+        - "TC-NFR04-01..03 → 3 IDs"
+        - "TC-NFR05-01 → 1 ID"
+        - "TC-NFR06-01..03 → 3 IDs"
+        - "TC-NFR07-01..05 → 5 IDs"
+        - "TC-NFR08-01..03 → 3 IDs"
+        - "TC-NFR09-01..03 → 3 IDs"
+        - "TC-NFR10-01..04 → 4 IDs"
+      sum: 63
+    by_fr:
+      FR-01:
+        tc_count: 7
+        layer_breakdown:
+          unit: 4
+          integration: 3
+        tc_ids: [TC-FR01-01, TC-FR01-02, TC-FR01-03, TC-FR01-04, TC-FR01-05, TC-FR01-06, TC-FR01-07]
+      FR-02:
+        tc_count: 7
+        layer_breakdown:
+          unit: 1
+          integration: 4
+          system: 2
+        tc_ids: [TC-FR02-01, TC-FR02-02, TC-FR02-03, TC-FR02-04, TC-FR02-05, TC-FR02-06, TC-FR02-07]
+      FR-03:
+        tc_count: 7
+        layer_breakdown:
+          unit: 3
+          integration: 3
+          system: 1
+        tc_ids: [TC-FR03-01, TC-FR03-02, TC-FR03-03, TC-FR03-04, TC-FR03-05, TC-FR03-06, TC-FR03-07]
+      FR-04:
+        tc_count: 6
+        layer_breakdown:
+          unit: 1
+          integration: 4
+          system: 1
+        tc_ids: [TC-FR04-01, TC-FR04-02, TC-FR04-03, TC-FR04-04, TC-FR04-05, TC-FR04-06]
+      FR-05:
+        tc_count: 8
+        layer_breakdown:
+          integration: 6
+          system: 2
+        tc_ids: [TC-FR05-01, TC-FR05-02, TC-FR05-03, TC-FR05-04, TC-FR05-05, TC-FR05-06, TC-FR05-07, TC-FR05-08]
+      NFR-01:
+        tc_count: 1
+        layer_breakdown:
+          benchmark: 1
+        tc_ids: [TC-NFR01-01]
+      NFR-02:
+        tc_count: 2
+        layer_breakdown:
+          unit: 2
+        tc_ids: [TC-NFR02-01, TC-NFR02-02]
+      NFR-03:
+        tc_count: 3
+        layer_breakdown:
+          unit: 1
+          integration: 2
+        tc_ids: [TC-NFR03-01, TC-NFR03-02, TC-NFR03-03]
+      NFR-04:
+        tc_count: 3
+        layer_breakdown:
+          unit: 3
+        tc_ids: [TC-NFR04-01, TC-NFR04-02, TC-NFR04-03]
+      NFR-05:
+        tc_count: 1
+        layer_breakdown:
+          unit: 1
+        tc_ids: [TC-NFR05-01]
+      NFR-06:
+        tc_count: 3
+        layer_breakdown:
+          unit: 3
+        tc_ids: [TC-NFR06-01, TC-NFR06-02, TC-NFR06-03]
+      NFR-07:
+        tc_count: 5
+        layer_breakdown:
+          unit: 1
+          system: 4
+        tc_ids: [TC-NFR07-01, TC-NFR07-02, TC-NFR07-03, TC-NFR07-04, TC-NFR07-05]
+      NFR-08:
+        tc_count: 3
+        layer_breakdown:
+          system: 3
+        tc_ids: [TC-NFR08-01, TC-NFR08-02, TC-NFR08-03]
+      NFR-09:
+        tc_count: 3
+        layer_breakdown:
+          benchmark: 1
+          system: 2
+        tc_ids: [TC-NFR09-01, TC-NFR09-02, TC-NFR09-03]
+      NFR-10:
+        tc_count: 4
+        layer_breakdown:
+          integration: 3
+          system: 1
+        tc_ids: [TC-NFR10-01, TC-NFR10-02, TC-NFR10-03, TC-NFR10-04]
+    by_fr_total: 63
+    by_layer:
+      unit:
+        count: 20
+        tc_ids: [TC-FR01-01, TC-FR01-02, TC-FR01-03, TC-FR01-05, TC-FR02-05, TC-FR03-02, TC-FR03-05, TC-FR03-06, TC-FR04-01, TC-NFR02-01, TC-NFR02-02, TC-NFR03-01, TC-NFR04-01, TC-NFR04-02, TC-NFR04-03, TC-NFR05-01, TC-NFR06-01, TC-NFR06-02, TC-NFR06-03, TC-NFR07-05]
+      integration:
+        count: 25
+        tc_ids: [TC-FR01-04, TC-FR01-06, TC-FR01-07, TC-FR02-01, TC-FR02-02, TC-FR02-03, TC-FR02-04, TC-FR03-01, TC-FR03-03, TC-FR03-04, TC-FR04-02, TC-FR04-03, TC-FR04-04, TC-FR04-05, TC-FR05-01, TC-FR05-02, TC-FR05-03, TC-FR05-04, TC-FR05-05, TC-FR05-06, TC-NFR03-02, TC-NFR03-03, TC-NFR10-01, TC-NFR10-02, TC-NFR10-03]
+      system:
+        count: 16
+        tc_ids: [TC-FR02-06, TC-FR02-07, TC-FR03-07, TC-FR04-06, TC-FR05-07, TC-FR05-08, TC-NFR07-01, TC-NFR07-02, TC-NFR07-03, TC-NFR07-04, TC-NFR08-01, TC-NFR08-02, TC-NFR08-03, TC-NFR09-02, TC-NFR09-03, TC-NFR10-04]
+      benchmark:
+        count: 2
+        tc_ids: [TC-NFR01-01, TC-NFR09-01]
+    by_layer_total: 63
+    layer_total_proof:
+      unit: 20
+      integration: 25
+      system: 16
+      benchmark: 2
+      sum: 63
+    integrity_invariants:
+      - "by_fr_total == by_layer_total == total_test_cases == 63"
+      - "every tc_id enumerated above appears exactly once in tests[]"
+      - "no FR/NFR range is collapsed (e.g. TC-FR01-01..07 expanded into 7 entries)"
+      - "cross_ref_frs / cross_ref_nfrs metadata add coverage signals but never delete entries"

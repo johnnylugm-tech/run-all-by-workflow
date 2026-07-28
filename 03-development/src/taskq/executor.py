@@ -35,6 +35,7 @@ Citations:
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -50,6 +51,19 @@ TAIL_BOUND = 2000
 EXIT_TIMEOUT = 4
 DEFAULT_TASK_TIMEOUT_SECONDS = 60
 DEFAULT_MAX_WORKERS = 4
+
+# T-04 mitigation: strip obvious secret-shaped substrings from subprocess
+# stdout/stderr before persisting them to tasks.json / cache.json. The
+# list is intentionally narrow (high-precision patterns with low false-
+# positive risk) — we redact, we do NOT log a redaction event, to keep
+# the persisted tail identical for non-secret runs.
+_SECRET_PATTERNS = (
+    re.compile(r"sk-[A-Za-z0-9]{16,}"),
+    re.compile(r"sk-[A-Za-z0-9_-]{16,}"),  # project keys w/ underscores/dashes
+    re.compile(r"(?i)token=[A-Za-z0-9._\-]{16,}"),
+    re.compile(r"(?i)password=[A-Za-z0-9._\-]{8,}"),
+    re.compile(r"Bearer\s+[A-Za-z0-9._\-]{16,}"),
+)
 
 # Injection point for the retry backoff (FR-03): tests replace this with
 # a recorder so the exponential formula is verified without real waits.
@@ -69,6 +83,19 @@ def _tail(text: str) -> str:
     """
     if len(text) > TAIL_BOUND:
         return text.rstrip("\n")[-TAIL_BOUND:]
+    return text
+
+
+def _redact(text: str) -> str:
+    """[T-04] Replace secret-shaped substrings with ``[REDACTED]``.
+
+    Applied to ``stdout_tail`` and ``stderr_tail`` BEFORE they reach
+    ``tasks.json`` or ``cache.json`` so a command whose output contains
+    an API key, bearer token, or ``token=...`` value does not durably
+    leak those secrets to disk (information-disclosure mitigation).
+    """
+    for pat in _SECRET_PATTERNS:
+        text = pat.sub("[REDACTED]", text)
     return text
 
 
@@ -148,15 +175,15 @@ def _execute(command: str, timeout: int) -> dict:
         return {
             "status": "timeout",
             "exit_code": EXIT_TIMEOUT,
-            "stdout_tail": _tail(_decode_capture(exc.stdout)),
-            "stderr_tail": _tail(_decode_capture(exc.stderr)),
+            "stdout_tail": _redact(_tail(_decode_capture(exc.stdout))),
+            "stderr_tail": _redact(_tail(_decode_capture(exc.stderr))),
         }
 
     return {
         "status": "done" if result.returncode == 0 else "failed",
         "exit_code": result.returncode,
-        "stdout_tail": _tail(result.stdout),
-        "stderr_tail": _tail(result.stderr),
+        "stdout_tail": _redact(_tail(result.stdout)),
+        "stderr_tail": _redact(_tail(result.stderr)),
     }
 
 

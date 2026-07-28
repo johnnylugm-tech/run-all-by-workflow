@@ -74,6 +74,7 @@ EXIT_VALIDATION_ERROR = 2
 
 DATA_FILENAMES = (
     store.TASKS_FILENAME,
+    store.TASKS_LOCK_FILENAME,
     breaker.BREAKER_FILENAME,
     cache.CACHE_FILENAME,
 )
@@ -171,28 +172,36 @@ def _cmd_submit(args: argparse.Namespace) -> int:
 
     home = store.home()
     home.mkdir(parents=True, exist_ok=True)
-    store_document = store.load_store(home)
 
-    if args.name is not None and _name_is_taken(store_document, args.name):
-        return _invalid(
-            "submit",
-            f"name {args.name!r} is already used by a pending/running task",
-        )
+    # Acquire the cross-process file lock so the read-modify-write of the
+    # --name uniqueness check and the subsequent tasks.json write is
+    # atomic with respect to other concurrent `python -m taskq` processes
+    # (T-07 mitigation: ``threading.Lock`` only protects within one
+    # process; ``store._file_lock`` is the OS-level ``flock`` that
+    # serialises every CLI invocation sharing $TASKQ_HOME).
+    with store._file_lock(home / store.TASKS_FILENAME):
+        store_document = store.load_store(home)
 
-    task_id = _new_task_id()
-    record = {
-        "status": STATUS_PENDING,
-        "command": args.command,
-        "created_at": store.now_iso(),
-    }
-    if args.name is not None:
-        record["name"] = args.name
-    store_document["tasks"][task_id] = record
+        if args.name is not None and _name_is_taken(store_document, args.name):
+            return _invalid(
+                "submit",
+                f"name {args.name!r} is already used by a pending/running task",
+            )
 
-    # Persist the entire store (full rewrite) — submit is the entry point
-    # so the task id is guaranteed new and there is no in-place update to
-    # merge against.
-    store._atomic_write_json(home / store.TASKS_FILENAME, store_document)
+        task_id = _new_task_id()
+        record = {
+            "status": STATUS_PENDING,
+            "command": args.command,
+            "created_at": store.now_iso(),
+        }
+        if args.name is not None:
+            record["name"] = args.name
+        store_document["tasks"][task_id] = record
+
+        # Persist the entire store (full rewrite) — submit is the entry
+        # point so the task id is guaranteed new and there is no in-place
+        # update to merge against.
+        store._atomic_write_json(home / store.TASKS_FILENAME, store_document)
 
     if args.json:
         print(json.dumps({"id": task_id, "status": STATUS_PENDING}))
